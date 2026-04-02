@@ -5,10 +5,9 @@
 //  Created by Erfan Yarahmadi on 01/04/2026.
 //
 
-
 import SwiftUI
 
-// MARK: - Team Ready (opponent picks word)
+// MARK: - Team Ready (actor spotlight + scoreboard only)
 
 struct TeamReadyView: View {
     var vm: GameViewModel
@@ -21,19 +20,23 @@ struct TeamReadyView: View {
     var opponentTeam: Team { vm.opponentTeam }
 
     @State private var appeared = false
-    @State private var showCategorySheet = false
 
     var body: some View {
         ZStack {
-            opponentTeam.color.ignoresSafeArea()
+            actingTeam.color.ignoresSafeArea()
+
+            // Round watermark
             Text("\(vm.currentRound)")
                 .font(.system(size: 280, weight: .black, design: .rounded))
                 .foregroundStyle(Color.white.opacity(0.07)).offset(y: -80)
 
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 18) {
-                    Spacer().frame(height: 8)
+            VStack(spacing: 0) {
+                // Scoreboard pinned at top
+                scoreBoard.padding(.top, 16)
 
+                Spacer()
+
+                VStack(spacing: 20) {
                     // Round badge
                     Text(t("Round \(vm.currentRound) of \(vm.settings.rounds)",
                            "راند \(vm.currentRound) از \(vm.settings.rounds)"))
@@ -42,297 +45,447 @@ struct TeamReadyView: View {
                         .padding(.horizontal, 16).padding(.vertical, 6)
                         .background(Color.white.opacity(0.15)).clipShape(Capsule())
 
-                    // Opponent team picks for acting team
-                    VStack(spacing: 10) {
-                        // Actor spotlight — shown prominently when team uses named members
-                        if let actorName = vm.currentActorName {
-                            VStack(spacing: 6) {
-                                Text(t("🎭 It\'s your turn!", "🎭 نوبت توئه!"))
-                                    .font(AppFonts.rounded(14, weight: .bold))
-                                    .foregroundStyle(Color.white.opacity(0.75))
-                                Text(actorName)
-                                    .font(.system(size: 38, weight: .black, design: .rounded))
-                                    .foregroundStyle(Color.white)
-                                Text(t("get ready to act for", "آماده شو برای تیم"))
-                                    .font(AppFonts.rounded(13)).foregroundStyle(Color.white.opacity(0.7))
-                                HStack(spacing: 6) {
-                                    Text(actingTeam.icon).font(.system(size: 18))
-                                    Text(actingTeam.name).font(AppFonts.rounded(16, weight: .heavy)).foregroundStyle(Color.white)
-                                }
-                            }
-                            .padding(.vertical, 14).padding(.horizontal, 24)
-                            .background(Color.white.opacity(0.15))
-                            .clipShape(RoundedRectangle(cornerRadius: 20))
-                            .padding(.horizontal, 28)
-                        } else {
-                            // No named members — just show which team is acting
-                            HStack(spacing: 6) {
-                                Text(actingTeam.icon).font(.system(size: 28))
-                                Text(actingTeam.name)
-                                    .font(.system(size: 26, weight: .black, design: .rounded))
-                                    .foregroundStyle(Color.white)
-                                Text(t("acts!", "بازی می‌کنه!"))
-                                    .font(AppFonts.rounded(18)).foregroundStyle(Color.white.opacity(0.8))
-                            }
-                        }
+                    // Actor spotlight
+                    actorSpotlight
 
-                        // Opponent label
-                        HStack(spacing: 5) {
-                            Text(opponentTeam.icon).font(.system(size: 14))
-                            Text(opponentTeam.name).font(AppFonts.rounded(13, weight: .bold)).foregroundStyle(Color.white.opacity(0.7))
-                            Text(t("picks the word below ↓", "کلمه رو انتخاب می‌کنه ↓"))
-                                .font(AppFonts.rounded(13)).foregroundStyle(Color.white.opacity(0.6))
-                        }
+                    // Opponent picks note
+                    HStack(spacing: 5) {
+                        Text(opponentTeam.icon).font(.system(size: 14))
+                        Text(opponentTeam.name)
+                            .font(AppFonts.rounded(13, weight: .bold))
+                            .foregroundStyle(Color.white.opacity(0.75))
+                        Text(t("will pick the word", "کلمه رو انتخاب می‌کنه"))
+                            .font(AppFonts.rounded(13))
+                            .foregroundStyle(Color.white.opacity(0.6))
                     }
+                    .padding(.horizontal, 20).padding(.vertical, 8)
+                    .background(Color.white.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
 
-                    // ── Compact scoreboard above word panel ──
-                    scoreBoard
+                Spacer()
+            }
+            .scaleEffect(appeared ? 1 : 0.88).opacity(appeared ? 1 : 0)
 
-                    // ── Word selection panel ──
-                    wordSelectionPanel
-
-                    // Start button
-                    Button {
-                        appSettings.hapticNotification(.success)
-                        vm.confirmWordAndStart(appSettings: appSettings)
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "play.fill")
-                            Text(t("START TURN!", "شروع نوبت!"))
-                                .font(.system(size: 19, weight: .black, design: .rounded)).tracking(1)
-                        }
-                        .foregroundStyle(opponentTeam.color).frame(maxWidth: .infinity).padding(.vertical, 20)
+            // Button pinned to bottom of ZStack using a full-height VStack
+            VStack {
+                Spacer()
+                Button {
+                    appSettings.hapticNotification(.success)
+                    vm.proceedToWordPick()
+                } label: {
+                    Text(t("PICK A WORD →", "انتخاب کلمه →"))
+                        .font(.system(size: 22, weight: .black, design: .rounded)).tracking(1)
+                        .foregroundStyle(actingTeam.color)
+                        .frame(maxWidth: .infinity).padding(.vertical, 22)
                         .background(Color.white)
                         .clipShape(RoundedRectangle(cornerRadius: 20))
                         .shadow(color: .black.opacity(0.2), radius: 14, y: 7)
-                    }
-                    .disabled(vm.currentWord == nil && vm.customWordInput.trimmingCharacters(in: .whitespaces).isEmpty)
-                    .padding(.horizontal, 28).padding(.bottom, 44)
                 }
+                .padding(.horizontal, 28).padding(.bottom, 48).padding(.top, 16)
             }
-            .scaleEffect(appeared ? 1 : 0.88).opacity(appeared ? 1 : 0)
         }
         .navigationBarBackButtonHidden()
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button { appSettings.haptic(.medium); vm.exitGame() } label: {
-                    Image(systemName: "xmark.circle.fill").font(.system(size: 22))
-                        .foregroundStyle(Color.white.opacity(0.75))
+                    ZStack {
+                        Circle()
+                            .fill(Color.black.opacity(0.25))
+                            .frame(width: 34, height: 34)
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .black))
+                            .foregroundStyle(Color.white)
+                    }
                 }
             }
         }
         .onAppear {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) { appeared = true }
-            // Auto-draw a word when this view appears
-            vm.refreshWord()
-        }
-        .sheet(isPresented: $showCategorySheet) {
-            CategorySheet(selectedCategories: Binding(
-                get: { vm.turnCategories }, set: { vm.turnCategories = $0 }
-            ), language: lang, onDone: { vm.refreshWord() })
         }
         .layoutDir(lang)
     }
 
-    // MARK: - Football Scoreboard
+    // MARK: - Actor spotlight
+
+    var actorSpotlight: some View {
+        Group {
+            if let actorName = vm.currentActorName {
+                VStack(spacing: 8) {
+                    Text(t("🎭 It's your turn!", "🎭 نوبت توئه!"))
+                        .font(AppFonts.rounded(15, weight: .bold))
+                        .foregroundStyle(Color.white.opacity(0.8))
+                    Text(actorName)
+                        .font(.system(size: 48, weight: .black, design: .rounded))
+                        .foregroundStyle(Color.white)
+                    HStack(spacing: 6) {
+                        Text(t("acting for", "بازی می‌کنه برای"))
+                            .font(AppFonts.rounded(15)).foregroundStyle(Color.white.opacity(0.7))
+                        Text(actingTeam.icon)
+                        Text(actingTeam.name)
+                            .font(AppFonts.rounded(16, weight: .heavy)).foregroundStyle(Color.white)
+                    }
+                }
+                .padding(.vertical, 20).padding(.horizontal, 32)
+                .background(Color.white.opacity(0.15))
+                .clipShape(RoundedRectangle(cornerRadius: 24))
+                .padding(.horizontal, 28)
+            } else {
+                // No named members
+                VStack(spacing: 8) {
+                    Text(actingTeam.icon).font(.system(size: 56))
+                    Text(actingTeam.name)
+                        .font(.system(size: 42, weight: .black, design: .rounded))
+                        .foregroundStyle(Color.white)
+                    Text(t("Get Ready to Act!", "آماده باش بازی کنی!"))
+                        .font(AppFonts.rounded(18, weight: .heavy))
+                        .foregroundStyle(Color.white.opacity(0.85))
+                }
+            }
+        }
+    }
+
+    // MARK: - Scoreboard
+    // 2 teams → classic full-width bar; 3+ teams → scrollable compact pills
 
     var scoreBoard: some View {
+        Group {
+            if vm.settings.teams.count == 2 {
+                twoTeamBar
+            } else {
+                multiTeamPills
+            }
+        }
+    }
+
+    var twoTeamBar: some View {
         HStack(spacing: 0) {
             ForEach(Array(vm.settings.teams.enumerated()), id: \.element.id) { i, team in
-                HStack(spacing: 0) {
-                    VStack(spacing: 4) {
-                        Text(team.icon).font(.system(size: 16))
-                        Text(team.name).font(AppFonts.rounded(10, weight: .heavy))
-                            .foregroundStyle(Color.white).lineLimit(1)
-                        Text("\(team.totalScore)")
-                            .font(.system(size: 18, weight: .black, design: .rounded))
-                            .foregroundStyle(i == vm.currentTeamIndex ? Color.yellow : Color.white)
-                    }
-                    .frame(maxWidth: .infinity).padding(.vertical, 8)
-                    .background(i == vm.currentTeamIndex ? Color.white.opacity(0.2) : Color.white.opacity(0.08))
+                let isActive = i == vm.currentTeamIndex
+                VStack(spacing: 3) {
+                    Text(team.icon).font(.system(size: 18))
+                    Text(team.name)
+                        .font(AppFonts.rounded(11, weight: .heavy))
+                        .foregroundStyle(Color.white).lineLimit(1)
+                    Text("\(team.totalScore)")
+                        .font(.system(size: 22, weight: .black, design: .rounded))
+                        .foregroundStyle(isActive ? Color.yellow : Color.white)
+                }
+                .frame(maxWidth: .infinity).padding(.vertical, 12)
+                .background(isActive ? Color.white.opacity(0.2) : Color.white.opacity(0.08))
 
-                    if i < vm.settings.teams.count - 1 {
-                        Text("VS").font(.system(size: 11, weight: .black, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.5)).padding(.horizontal, 4)
-                    }
+                if i == 0 {
+                    Text("VS")
+                        .font(.system(size: 11, weight: .black, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.5))
+                        .padding(.horizontal, 6)
                 }
             }
         }
         .background(Color.black.opacity(0.15))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal, 28)
     }
 
-    // MARK: - Word Selection Panel
-
-    var wordSelectionPanel: some View {
-        VStack(spacing: 12) {
-            // ── Difficulty selector ──
-            VStack(alignment: .leading, spacing: 8) {
-                Text(t("Difficulty (score)", "سختی (امتیاز)"))
-                    .font(AppFonts.rounded(13, weight: .heavy)).foregroundStyle(.white.opacity(0.8))
-                    .padding(.leading, 4)
-                HStack(spacing: 10) {
-                    ForEach([3, 5, 7], id: \.self) { pts in
-                        Button {
-                            vm.selectedPoints = pts
-                            vm.customWordInput = ""
-                            vm.refreshWord()
-                            appSettings.haptic(.light)
-                        } label: {
-                            VStack(spacing: 4) {
-                                Text(pts == 3 ? "😊" : pts == 5 ? "😤" : "🔥").font(.system(size: 22))
-                                Text("\(pts) pts").font(AppFonts.rounded(13, weight: .black))
-                                Text(pts == 3 ? t("Easy","آسون") : pts == 5 ? t("Medium","متوسط") : t("Hard","سخت"))
-                                    .font(AppFonts.rounded(11))
-                            }
-                            .foregroundStyle(vm.selectedPoints == pts ? AppColors.forPoints(pts) : Color.white.opacity(0.7))
-                            .frame(maxWidth: .infinity).padding(.vertical, 10)
-                            .background(vm.selectedPoints == pts ? Color.white : Color.white.opacity(0.15))
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
+    var multiTeamPills: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Array(vm.settings.teams.enumerated()), id: \.element.id) { i, team in
+                    let isActive = i == vm.currentTeamIndex
+                    HStack(spacing: 6) {
+                        Text(team.icon).font(.system(size: 15))
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(team.name)
+                                .font(AppFonts.rounded(10, weight: .heavy))
+                                .foregroundStyle(isActive ? team.color : AppColors.textSecondary)
+                                .lineLimit(1)
+                            Text("\(team.totalScore) " + (vm.language == .persian ? "امتیاز" : "pts"))
+                                .font(.system(size: 14, weight: .black, design: .rounded))
+                                .foregroundStyle(isActive ? team.color : AppColors.text)
+                        }
+                        if isActive {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 8, weight: .black))
+                                .foregroundStyle(team.color)
                         }
                     }
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.white)
+                            .shadow(color: isActive ? team.color.opacity(0.22) : .black.opacity(0.06),
+                                    radius: isActive ? 7 : 3, y: 3)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(isActive ? team.color.opacity(0.45) : Color.clear, lineWidth: 2)
+                    )
                 }
             }
-            .padding(.horizontal, 28)
-
-            // ── Category filter ──
-            Button { showCategorySheet = true } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "tag.fill").font(.system(size: 13, weight: .bold))
-                    Text(categoryLabel).font(AppFonts.rounded(13, weight: .bold)).lineLimit(1)
-                    Spacer()
-                    Image(systemName: "chevron.right").font(.system(size: 11))
-                }
-                .foregroundStyle(.white).padding(.horizontal, 16).padding(.vertical, 10)
-                .background(Color.white.opacity(0.18)).clipShape(RoundedRectangle(cornerRadius: 12))
-            }
-            .padding(.horizontal, 28)
-
-            // ── Current word card ──
-            if let word = vm.currentWord, vm.customWordInput.trimmingCharacters(in: .whitespaces).isEmpty {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(word.displayText(language: lang))
-                            .font(AppFonts.rounded(20, weight: .black)).foregroundStyle(AppColors.text)
-                        HStack(spacing: 6) {
-                            if !word.isCustom {
-                                Text(word.category.emoji)
-                                Text(lang == .persian ? word.category.persianName : word.category.rawValue)
-                                    .font(AppFonts.rounded(12)).foregroundStyle(AppColors.textSecondary)
-                            }
-                            PointsBadge(points: word.points)
-                        }
-                    }
-                    Spacer()
-                    Button {
-                        vm.refreshWord()
-                        appSettings.haptic(.light)
-                    } label: {
-                        Image(systemName: "arrow.clockwise.circle.fill")
-                            .font(.system(size: 32)).foregroundStyle(opponentTeam.color)
-                    }
-                }
-                .padding(16).background(Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-                .shadow(color: .black.opacity(0.08), radius: 10, y: 4)
-                .padding(.horizontal, 28)
-            }
-
-            // ── Custom word box ──
-            VStack(alignment: .leading, spacing: 6) {
-                Text(t("Or type a custom word (7 pts):", "یا یه کلمه سفارشی بنویس (۷ امتیاز):"))
-                    .font(AppFonts.rounded(12, weight: .bold)).foregroundStyle(.white.opacity(0.8))
-                TextField(t("Type any word…", "هر کلمه‌ای بنویس…"), text: Binding(
-                    get: { vm.customWordInput },
-                    set: { vm.customWordInput = $0 }
-                ))
-                .font(AppFonts.rounded(16, weight: .medium)).foregroundStyle(AppColors.text)
-                .submitLabel(.done).padding(14)
-                .background(Color.white).clipShape(RoundedRectangle(cornerRadius: 14))
-                .shadow(color: .black.opacity(0.06), radius: 6, y: 3)
-            }
-            .padding(.horizontal, 28)
+            .padding(.horizontal, 28).padding(.vertical, 2)
         }
-    }
-
-    var categoryLabel: String {
-        let cats = vm.turnCategories
-        if cats.count == WordCategory.allCases.count { return t("All Categories", "همه دسته‌بندی‌ها") }
-        if cats.count == 1, let c = cats.first { return "\(c.emoji) \(lang == .persian ? c.persianName : c.rawValue)" }
-        return t("\(cats.count) Categories", "\(cats.count) دسته")
     }
 }
 
-// MARK: - Category Sheet (from TeamReady)
+// MARK: - Word Pick View (opponent chooses word)
 
-struct CategorySheet: View {
-    @Binding var selectedCategories: Set<WordCategory>
-    let language: AppLanguage
-    let onDone: () -> Void
-    @Environment(\.dismiss) var dismiss
+struct WordPickView: View {
+    var vm: GameViewModel
+    var appSettings: AppSettings
+
+    var lang: AppLanguage { vm.language }
+    func t(_ en: String, _ fa: String) -> String { lang == .persian ? fa : en }
+
+    var opponentTeam: Team { vm.opponentTeam }
+    var actingTeam: Team  { vm.settings.teams[vm.currentTeamIndex] }
+
+    // Toggle: false = app picks from categories, true = custom word
+    @State private var useCustomWord: Bool = false
+    @State private var selectedPoints: Int = 5
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                AppColors.background.ignoresSafeArea()
-                ScrollView {
-                    VStack(spacing: 10) {
-                        HStack(spacing: 10) {
-                            Button {
-                                selectedCategories = Set(WordCategory.allCases); Haptics.impact(.light)
-                            } label: {
-                                Text(language == .persian ? "همه" : "Select All")
-                                    .font(AppFonts.rounded(14, weight: .bold)).foregroundStyle(AppColors.blue)
-                                    .frame(maxWidth: .infinity).padding(.vertical, 10)
-                                    .background(AppColors.blue.opacity(0.1)).clipShape(RoundedRectangle(cornerRadius: 12))
-                            }
-                            Button {
-                                if selectedCategories.count > 1 { selectedCategories = [WordCategory.allCases.first!]; Haptics.impact(.light) }
-                            } label: {
-                                Text(language == .persian ? "حذف همه" : "Clear All")
-                                    .font(AppFonts.rounded(14, weight: .bold)).foregroundStyle(AppColors.red)
-                                    .frame(maxWidth: .infinity).padding(.vertical, 10)
-                                    .background(AppColors.red.opacity(0.1)).clipShape(RoundedRectangle(cornerRadius: 12))
-                            }
-                        }.padding(.horizontal, 18).padding(.top, 10)
+        ZStack {
+            opponentTeam.color.ignoresSafeArea()
+            Text(useCustomWord ? "✏️" : "?")
+                .font(.system(size: 220, weight: .black))
+                .foregroundStyle(Color.white.opacity(0.05))
+                .offset(y: -60)
 
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                            ForEach(WordCategory.allCases) { cat in
-                                let isOn = selectedCategories.contains(cat)
-                                Button {
-                                    Haptics.impact(.light)
-                                    if isOn { if selectedCategories.count > 1 { selectedCategories.remove(cat) } }
-                                    else { selectedCategories.insert(cat) }
-                                } label: {
-                                    VStack(spacing: 7) {
-                                        Text(cat.emoji).font(.system(size: 28))
-                                        Text(language == .persian ? cat.persianName : cat.rawValue)
-                                            .font(AppFonts.rounded(12, weight: .bold)).multilineTextAlignment(.center)
-                                    }
-                                    .frame(maxWidth: .infinity).padding(.vertical, 14)
-                                    .foregroundStyle(isOn ? Color.white : AppColors.text)
-                                    .background {
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .fill(isOn ? AppColors.forCategory(cat) : Color.white)
-                                            .shadow(color: isOn ? AppColors.forCategory(cat).opacity(0.28) : .black.opacity(0.06), radius: 6, y: 3)
-                                    }
-                                }
-                            }
-                        }.padding(.horizontal, 18).padding(.bottom, 20)
+            VStack(spacing: 0) {
+                // ── Header ──
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        Text(actingTeam.icon).font(.system(size: 22))
+                        Text(t("Word Selection for", "انتخاب کلمه برای"))
+                            .font(AppFonts.rounded(14)).foregroundStyle(.white.opacity(0.75))
+                        Text(actingTeam.name)
+                            .font(AppFonts.rounded(16, weight: .black)).foregroundStyle(.white)
                     }
+
+                    // Toggle
+                    HStack(spacing: 10) {
+                        Text(t("Custom Word", "کلمه سفارشی"))
+                            .font(AppFonts.rounded(14, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.85))
+                        Toggle("", isOn: $useCustomWord)
+                            .labelsHidden()
+                            .tint(AppColors.purple)
+                            .onChange(of: useCustomWord) { _, _ in
+                                vm.customWordInput = ""
+                                if !useCustomWord { vm.refreshWord() }
+                                appSettings.haptic(.light)
+                            }
+                    }
+                    .padding(.horizontal, 20).padding(.vertical, 8)
+                    .background(Color.white.opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .padding(.horizontal, 28)
                 }
-            }
-            .navigationTitle(language == .persian ? "دسته‌بندی‌ها" : "Categories")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(language == .persian ? "تأیید" : "Done") { onDone(); dismiss() }
-                        .font(AppFonts.rounded(16, weight: .bold)).foregroundStyle(AppColors.blue)
+                .padding(.top, 16).padding(.bottom, 16)
+
+                // ── Content area (switches on toggle) ──
+                if useCustomWord {
+                    customWordPage
+                } else {
+                    appPicksPage
                 }
             }
         }
-        .layoutDir(language)
+        .navigationBarBackButtonHidden()
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    appSettings.haptic(.light)
+                    vm.navPath = [.teamReady]
+                    vm.phase = .teamReady
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(Color.black.opacity(0.25))
+                            .frame(width: 34, height: 34)
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 13, weight: .black))
+                            .foregroundStyle(Color.white)
+                    }
+                }
+            }
+        }
+        .onAppear {
+            if vm.currentWord == nil { vm.refreshWord() }
+        }
+        .layoutDir(lang)
+    }
+
+    // MARK: - App picks mode (categories + difficulty + big GO button)
+
+    var appPicksPage: some View {
+        VStack(spacing: 0) {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 16) {
+                    categoryGrid.padding(.horizontal, 20)
+                    difficultyButtons.padding(.horizontal, 20)
+                    Spacer().frame(height: 100) // room for the button
+                }
+                .padding(.top, 4)
+            }
+
+            // Big GO button pinned at bottom
+            VStack(spacing: 0) {
+                Button {
+                    appSettings.hapticNotification(.success)
+                    vm.selectedPoints = selectedPoints
+                    vm.refreshWord()
+                    vm.confirmWordAndStart(appSettings: appSettings)
+                } label: {
+                    HStack(spacing: 10) {
+                        PointsBadge(points: selectedPoints)
+                        Text(t("START TIMER →", "شروع تایمر →"))
+                            .font(.system(size: 20, weight: .black, design: .rounded)).tracking(1)
+                    }
+                    .foregroundStyle(opponentTeam.color)
+                    .frame(maxWidth: .infinity).padding(.vertical, 20)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    .shadow(color: .black.opacity(0.2), radius: 14, y: 7)
+                }
+                .padding(.horizontal, 28).padding(.bottom, 48).padding(.top, 16)
+            }
+        }
+    }
+
+    // MARK: - Custom word mode
+
+    var customWordPage: some View {
+        VStack(spacing: 20) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "pencil.circle.fill").font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(AppColors.purple)
+                    Text(t("Write a Custom Word", "کلمه سفارشی بنویس"))
+                        .font(AppFonts.rounded(16, weight: .black)).foregroundStyle(.white)
+                    Spacer()
+                    PointsBadge(points: 9)
+                }
+                Text(t("Give the phone to the opponent — they write a harder word. Worth 9 points.",
+                       "گوشی رو بده به تیم حریف — یه کلمه سخت‌تر می‌نویسند. ۹ امتیاز ارزش داره."))
+                    .font(AppFonts.rounded(12))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                TextField(t("Type any word…", "هر کلمه‌ای بنویس…"),
+                          text: Binding(get: { vm.customWordInput }, set: { vm.customWordInput = $0 }))
+                    .font(AppFonts.rounded(17, weight: .medium))
+                    .foregroundStyle(AppColors.text)
+                    .submitLabel(.go)
+                    .onSubmit { confirmCustomWord() }
+                    .padding(16)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: .black.opacity(0.08), radius: 8, y: 4)
+            }
+            .padding(18)
+            .background(Color.white.opacity(0.15))
+            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .padding(.horizontal, 20)
+
+            Spacer()
+
+            // GO button — only active when text is filled
+            let hasText = !vm.customWordInput.trimmingCharacters(in: .whitespaces).isEmpty
+            Button {
+                confirmCustomWord()
+            } label: {
+                HStack(spacing: 10) {
+                    PointsBadge(points: 9)
+                    Text(t("START TIMER →", "شروع تایمر →"))
+                        .font(.system(size: 20, weight: .black, design: .rounded)).tracking(1)
+                }
+                .foregroundStyle(opponentTeam.color)
+                .frame(maxWidth: .infinity).padding(.vertical, 20)
+                .background(Color.white.opacity(hasText ? 1 : 0.35))
+                .clipShape(RoundedRectangle(cornerRadius: 20))
+                .shadow(color: .black.opacity(hasText ? 0.2 : 0), radius: 14, y: 7)
+            }
+            .disabled(!hasText)
+            .padding(.horizontal, 28).padding(.bottom, 48).padding(.top, 16)
+        }
+    }
+
+    func confirmCustomWord() {
+        let text = vm.customWordInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        appSettings.hapticNotification(.success)
+        vm.confirmWordAndStart(appSettings: appSettings)
+    }
+
+    // MARK: - Category grid
+
+    var categoryGrid: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(t("Categories", "دسته‌بندی‌ها"))
+                .font(AppFonts.rounded(13, weight: .heavy))
+                .foregroundStyle(.white.opacity(0.8))
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()),
+                                 GridItem(.flexible()), GridItem(.flexible())],
+                      spacing: 8) {
+                ForEach(WordCategory.allCases) { cat in
+                    let isOn = vm.turnCategories.contains(cat)
+                    Button {
+                        Haptics.impact(.light)
+                        if isOn {
+                            if vm.turnCategories.count > 1 { vm.turnCategories.remove(cat) }
+                        } else {
+                            vm.turnCategories.insert(cat)
+                        }
+                    } label: {
+                        VStack(spacing: 3) {
+                            Text(cat.emoji).font(.system(size: 20))
+                            Text(lang == .persian ? cat.persianName : cat.rawValue)
+                                .font(AppFonts.rounded(9, weight: .bold))
+                                .multilineTextAlignment(.center).lineLimit(2)
+                        }
+                        .frame(maxWidth: .infinity).padding(.vertical, 8)
+                        .foregroundStyle(isOn ? AppColors.forCategory(cat) : Color.white.opacity(0.55))
+                        .background(isOn ? Color.white : Color.white.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Difficulty selector (3 toggle-style buttons, not confirm-triggering)
+
+    var difficultyButtons: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(t("Difficulty", "سختی"))
+                .font(AppFonts.rounded(13, weight: .heavy))
+                .foregroundStyle(.white.opacity(0.8))
+
+            HStack(spacing: 10) {
+                ForEach([3, 5, 7], id: \.self) { pts in
+                    Button {
+                        selectedPoints = pts
+                        appSettings.haptic(.light)
+                    } label: {
+                        VStack(spacing: 3) {
+                            Text(pts == 3 ? "😊" : pts == 5 ? "😤" : "🔥")
+                                .font(.system(size: 20))
+                            Text(lang == .persian ? "\(pts) امتیاز" : "\(pts) pts").font(AppFonts.rounded(12, weight: .black))
+                            Text(pts == 3 ? t("Easy","آسون") : pts == 5 ? t("Medium","متوسط") : t("Hard","سخت"))
+                                .font(AppFonts.rounded(10))
+                        }
+                        .foregroundStyle(selectedPoints == pts ? AppColors.forPoints(pts) : Color.white.opacity(0.65))
+                        .frame(maxWidth: .infinity).padding(.vertical, 10)
+                        .background(selectedPoints == pts ? Color.white : Color.white.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .shadow(color: selectedPoints == pts ? AppColors.forPoints(pts).opacity(0.3) : .clear,
+                                radius: 6, y: 3)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -341,8 +494,9 @@ struct CategorySheet: View {
 struct PlayingView: View {
     var vm: GameViewModel
     var appSettings: AppSettings
+
     @State private var showExitConfirm = false
-    @State private var showHint = false
+    @State private var sessionMusicMuted = false  // temp mute for this turn only
 
     var lang: AppLanguage { vm.language }
     func t(_ en: String, _ fa: String) -> String { lang == .persian ? fa : en }
@@ -352,6 +506,7 @@ struct PlayingView: View {
         if vm.timeRemaining > 10 { return AppColors.yellow }
         return AppColors.red
     }
+
     var timerProgress: Double {
         Double(vm.timeRemaining) / Double(vm.settings.timePerTurn)
     }
@@ -361,24 +516,22 @@ struct PlayingView: View {
             AppColors.background.ignoresSafeArea()
             VStack(spacing: 0) {
                 topBar
-                // Score badge
+                // Live score badge
                 if let word = vm.currentWord {
                     HStack(spacing: 8) {
-                        Text(t("Current word value:", "ارزش کلمه:")).font(AppFonts.rounded(13)).foregroundStyle(AppColors.textSecondary)
+                        Text(t("Word value:", "ارزش کلمه:"))
+                            .font(AppFonts.rounded(13)).foregroundStyle(AppColors.textSecondary)
                         PointsBadge(points: vm.currentWordPoints)
                         if word.points != vm.currentWordPoints {
-                            Text("(was \(word.points))").font(AppFonts.rounded(12)).foregroundStyle(AppColors.textSecondary)
+                            Text(lang == .persian ? "(بود \(word.points))" : "(was \(word.points))")
+                                .font(AppFonts.rounded(12)).foregroundStyle(AppColors.textSecondary)
                         }
                     }.padding(.top, 6)
                 }
                 timerRing.padding(.vertical, 14)
                 wordSection
                 Spacer()
-                if !vm.timerStarted {
-                    startButton
-                } else {
-                    actionButtons
-                }
+                if !vm.timerStarted { startButton } else { actionButtons }
             }
         }
         .navigationBarBackButtonHidden()
@@ -389,48 +542,42 @@ struct PlayingView: View {
             }
             Button(t("Cancel","انصراف"), role: .cancel) {}
         } message: { Text(t("Your progress will be lost.","پیشرفت بازی از دست می‌رود.")) }
-        .sheet(isPresented: $showHint) {
-            if let hint = vm.currentWord?.hint {
-                HintSheet(hint: hint, language: lang)
-            }
-        }
     }
 
     var topBar: some View {
         HStack {
+            // Exit
             Button { showExitConfirm = true; appSettings.haptic(.light) } label: {
-                Image(systemName: "xmark.circle.fill").font(.system(size: 26))
-                    .foregroundStyle(AppColors.textSecondary.opacity(0.55))
+                ZStack {
+                    Circle().fill(Color.black.opacity(0.12)).frame(width: 34, height: 34)
+                    Image(systemName: "xmark").font(.system(size: 13, weight: .black)).foregroundStyle(AppColors.text)
+                }
             }
+
             Spacer()
-            VStack(spacing: 2) {
-                HStack(spacing: 7) {
-                    Text(vm.currentTeam.icon)
-                    Text(vm.currentTeam.name).font(AppFonts.rounded(15, weight: .bold)).foregroundStyle(AppColors.text)
-                    Text("·").foregroundStyle(AppColors.textSecondary)
-                    Text("\(vm.currentTeam.totalScore) pts").font(AppFonts.rounded(15, weight: .heavy)).foregroundStyle(vm.currentTeam.color)
-                }
-                if let actor = vm.currentActorName {
-                    HStack(spacing: 4) {
-                        Image(systemName: "person.fill").font(.system(size: 10, weight: .bold))
-                        Text(t("Acting: \(actor)", "بازیکن: \(actor)"))
-                            .font(AppFonts.rounded(12, weight: .heavy))
-                    }
-                    .foregroundStyle(vm.currentTeam.color)
-                }
+            HStack(spacing: 7) {
+                Text(vm.currentTeam.icon)
+                Text(vm.currentTeam.name).font(AppFonts.rounded(15, weight: .bold)).foregroundStyle(AppColors.text)
+                Text("·").foregroundStyle(AppColors.textSecondary)
+                Text(lang == .persian ? "\(vm.currentTeam.totalScore) امتیاز" : "\(vm.currentTeam.totalScore) pts").font(AppFonts.rounded(15, weight: .heavy)).foregroundStyle(vm.currentTeam.color)
             }
             Spacer()
             Button {
-                if vm.timerStarted { vm.isPaused.toggle() }
-                if vm.isPaused { appSettings.stopPartyMusic() } else { appSettings.startPartyMusic() }
+                vm.isPaused.toggle()
+                if vm.isPaused { appSettings.pausePartyMusic() } else { appSettings.resumePartyMusic() }
                 appSettings.haptic(.light)
             } label: {
-                Image(systemName: vm.isPaused ? "play.fill" : "pause.fill")
-                    .font(.system(size: 15, weight: .bold)).foregroundStyle(AppColors.text)
-                    .frame(width: 34, height: 34).background(Color.white).clipShape(Circle())
-                    .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+                ZStack {
+                    Circle()
+                        .fill(Color.black.opacity(0.12))
+                        .frame(width: 34, height: 34)
+                    Image(systemName: vm.isPaused ? "play.fill" : "pause.fill")
+                        .font(.system(size: 12, weight: .black))
+                        .foregroundStyle(AppColors.text)
+                }
             }
-            .opacity(vm.timerStarted ? 1 : 0.4)
+            .opacity(vm.timerStarted ? 1 : 0.3)
+            .disabled(!vm.timerStarted)
         }
         .padding(.horizontal, 20).padding(.top, 8)
     }
@@ -461,8 +608,9 @@ struct PlayingView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 200, maxHeight: 200).padding(.horizontal, 20)
 
+            // Category chip — only for non-custom words
             if vm.wordRevealed && !vm.isPaused, let word = vm.currentWord, !word.isCustom {
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     Text(word.category.emoji)
                     Text(lang == .persian ? word.category.persianName : word.category.rawValue)
                         .font(AppFonts.rounded(13, weight: .bold))
@@ -535,20 +683,15 @@ struct PlayingView: View {
         }
     }
 
-    // START button (before timer begins)
     var startButton: some View {
-        VStack(spacing: 12) {
-            // Show actor name prominently if team uses named members
+        VStack(spacing: 10) {
             if let actor = vm.currentActorName {
                 VStack(spacing: 4) {
-                    Text(t("It\'s your turn to act!", "نوبت بازی کردن توئه!"))
+                    Text(t("It's your turn to act!","نوبت بازی کردن توئه!"))
                         .font(AppFonts.rounded(13, weight: .medium)).foregroundStyle(AppColors.textSecondary)
                     HStack(spacing: 6) {
-                        Image(systemName: "person.circle.fill")
-                            .font(.system(size: 22)).foregroundStyle(vm.currentTeam.color)
-                        Text(actor)
-                            .font(.system(size: 24, weight: .black, design: .rounded))
-                            .foregroundStyle(vm.currentTeam.color)
+                        Image(systemName: "person.circle.fill").font(.system(size: 22)).foregroundStyle(vm.currentTeam.color)
+                        Text(actor).font(.system(size: 24, weight: .black, design: .rounded)).foregroundStyle(vm.currentTeam.color)
                     }
                     .padding(.horizontal, 20).padding(.vertical, 10)
                     .background(vm.currentTeam.color.opacity(0.1))
@@ -559,8 +702,11 @@ struct PlayingView: View {
                     .font(AppFonts.rounded(14, weight: .medium)).foregroundStyle(AppColors.textSecondary)
                     .multilineTextAlignment(.center).padding(.horizontal, 32)
             }
+
+            // START TIMER
             Button {
                 appSettings.hapticNotification(.success)
+                sessionMusicMuted = false  // reset mute each fresh start
                 vm.startTimer(appSettings: appSettings)
             } label: {
                 HStack(spacing: 10) {
@@ -571,59 +717,55 @@ struct PlayingView: View {
                 .background(AppColors.green).clipShape(RoundedRectangle(cornerRadius: 18))
                 .shadow(color: AppColors.green.opacity(0.45), radius: 12, y: 6)
             }
+            .padding(.horizontal, 20)
+
+            // CHANGE WORD — disabled for custom words (opponent chose it, can't swap)
+            let isCustomWord = vm.currentWord?.isCustom == true
+            let canChange = !isCustomWord && vm.currentWordPoints > 1
+            Button {
+                appSettings.haptic(.medium)
+                vm.changeWordBeforeStart()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 14, weight: .bold))
+                    Text(isCustomWord
+                         ? t("Custom word — can't change","کلمه سفارشی — قابل تغییر نیست")
+                         : t("Change Word (−1 pt)","عوض کردن کلمه (−۱ امتیاز)"))
+                        .font(AppFonts.rounded(14, weight: .bold))
+                }
+                .foregroundStyle(canChange ? AppColors.orange : AppColors.textSecondary.opacity(0.35))
+                .frame(maxWidth: .infinity).padding(.vertical, 13)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .shadow(color: .black.opacity(canChange ? 0.05 : 0), radius: 5, y: 3)
+            }
+            .disabled(!canChange)
             .padding(.horizontal, 20).padding(.bottom, 36)
         }
     }
 
-    // In-game buttons
     var actionButtons: some View {
         VStack(spacing: 10) {
-            // Row 1: Fault | Hint
-            HStack(spacing: 10) {
-                // FAULT button
-                Button {
-                    vm.applyFault(appSettings: appSettings)
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: "exclamationmark.circle.fill").font(.system(size: 20, weight: .bold))
-                        Text(t("Fault (-1)","خطا (-۱)")).font(AppFonts.rounded(13, weight: .bold))
-                    }
-                    .foregroundStyle(vm.currentWordPoints > 1 ? Color.white : Color.white.opacity(0.4))
-                    .frame(maxWidth: .infinity).padding(.vertical, 14)
-                    .background(vm.currentWordPoints > 1 ? AppColors.orange : AppColors.textSecondary.opacity(0.4))
-                    .clipShape(RoundedRectangle(cornerRadius: 15))
-                    .shadow(color: AppColors.orange.opacity(0.35), radius: 8, y: 4)
+            // Fault button (full width, no hint button)
+            Button {
+                vm.applyFault(appSettings: appSettings)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.circle.fill").font(.system(size: 20, weight: .bold))
+                    Text(t("Fault (−1 pt)","خطا (−۱ امتیاز)")).font(AppFonts.rounded(15, weight: .bold))
                 }
-                .disabled(vm.currentWordPoints <= 1 || vm.isPaused)
-
-                // HINT button — only for 7-pt non-custom words with hints, only if not used
-                if let word = vm.currentWord, word.points == 7 && !word.isCustom && word.hint != nil {
-                    Button {
-                        if !vm.hintUsed {
-                            vm.useHint(appSettings: appSettings)
-                        }
-                        showHint = true
-                    } label: {
-                        VStack(spacing: 4) {
-                            Image(systemName: vm.hintUsed ? "lightbulb.fill" : "lightbulb").font(.system(size: 20, weight: .bold))
-                            Text(vm.hintUsed ? t("Hint (-1 used)","راهنما (استفاده شد)") : t("Hint (-1 pt)","راهنما (-۱)"))
-                                .font(AppFonts.rounded(12, weight: .bold))
-                        }
-                        .foregroundStyle(.white.opacity(vm.hintUsed ? 0.55 : 1))
-                        .frame(maxWidth: .infinity).padding(.vertical, 14)
-                        .background(AppColors.purple.opacity(vm.hintUsed ? 0.5 : 1))
-                        .clipShape(RoundedRectangle(cornerRadius: 15))
-                        .shadow(color: AppColors.purple.opacity(0.35), radius: 8, y: 4)
-                    }
-                    .disabled(vm.isPaused)
-                }
+                .foregroundStyle(vm.currentWordPoints > 1 ? Color.white : Color.white.opacity(0.4))
+                .frame(maxWidth: .infinity).padding(.vertical, 15)
+                .background(vm.currentWordPoints > 1 ? AppColors.orange : AppColors.textSecondary.opacity(0.4))
+                .clipShape(RoundedRectangle(cornerRadius: 15))
+                .shadow(color: AppColors.orange.opacity(0.3), radius: 8, y: 4)
             }
+            .disabled(vm.currentWordPoints <= 1 || vm.isPaused)
+            .opacity(vm.isPaused ? 0.4 : 1)
             .padding(.horizontal, 20)
 
-            // Row 2: We Got It
-            Button {
-                vm.teamGuessedCorrectly(appSettings: appSettings)
-            } label: {
+            // We Got It
+            Button { vm.teamGuessedCorrectly(appSettings: appSettings) } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "checkmark.circle.fill").font(.system(size: 22, weight: .bold))
                     Text(t("We Got It! +\(vm.currentWordPoints)","حدس زدیم! +\(vm.currentWordPoints)"))
@@ -636,10 +778,9 @@ struct PlayingView: View {
             .disabled(vm.isPaused).opacity(vm.isPaused ? 0.4 : 1)
             .padding(.horizontal, 20)
 
-            // Row 3: End turn
+            // End Turn
             Button {
-                appSettings.haptic(.medium)
-                appSettings.stopPartyMusic()
+                appSettings.haptic(.medium); appSettings.stopPartyMusic()
                 vm.endTurnNoGuess(appSettings: appSettings)
             } label: {
                 HStack(spacing: 8) {
@@ -657,39 +798,11 @@ struct PlayingView: View {
     }
 }
 
-// MARK: - Hint Sheet
-
-struct HintSheet: View {
-    let hint: String; let language: AppLanguage
-    @Environment(\.dismiss) var dismiss
-    func t(_ en: String, _ fa: String) -> String { language == .persian ? fa : en }
-    var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            Image(systemName: "lightbulb.fill").font(.system(size: 52)).foregroundStyle(AppColors.yellow)
-            Text(t("Hint","راهنما")).font(.system(size: 28, weight: .black, design: .rounded)).foregroundStyle(AppColors.text)
-            Text(hint).font(AppFonts.rounded(18, weight: .medium)).foregroundStyle(AppColors.text)
-                .multilineTextAlignment(.center).padding(.horizontal, 32)
-            Text(t("This hint cost you 1 point.","این راهنما ۱ امتیاز کم کرد."))
-                .font(AppFonts.rounded(13)).foregroundStyle(AppColors.textSecondary)
-            Spacer()
-            Button { dismiss() } label: {
-                Text(t("Got it!","متوجه شدم!")).font(AppFonts.rounded(17, weight: .heavy)).foregroundStyle(.white)
-                    .frame(maxWidth: .infinity).padding(.vertical, 17)
-                    .background(AppColors.yellow).clipShape(RoundedRectangle(cornerRadius: 16))
-            }
-            .padding(.horizontal, 28).padding(.bottom, 32)
-        }
-        .layoutDir(language)
-    }
-}
-
 // MARK: - Turn Result View
 
 struct TurnResultView: View {
     var vm: GameViewModel
     var appSettings: AppSettings
-
     var lang: AppLanguage { vm.language }
     func t(_ en: String, _ fa: String) -> String { lang == .persian ? fa : en }
 
@@ -697,34 +810,37 @@ struct TurnResultView: View {
         ZStack {
             (record?.guessed == true ? AppColors.green : AppColors.textSecondary).opacity(0.15).ignoresSafeArea()
             AppColors.background.ignoresSafeArea().opacity(0.6)
-
             VStack(spacing: 28) {
                 Spacer()
-                // Result icon
                 Text(record?.guessed == true ? "🎉" : "😅").font(.system(size: 80))
                 Text(record?.guessed == true ? t("Guessed!","حدس زده شد!") : t("Not this time!","این دفعه نشد!"))
                     .font(.system(size: 32, weight: .black, design: .rounded)).foregroundStyle(AppColors.text)
 
-                // Score breakdown card
                 if let rec = record {
                     VStack(spacing: 0) {
                         HStack {
                             Text(t("Score Breakdown","خلاصه امتیاز"))
                                 .font(AppFonts.rounded(16, weight: .black)).foregroundStyle(AppColors.text)
                             Spacer()
-                        }
-                        .padding(.bottom, 14)
-
+                        }.padding(.bottom, 14)
                         resultRow(label: t("Word","کلمه"), value: rec.word, color: AppColors.blue)
                         if !rec.isCustom {
-                            resultRow(label: t("Category","دسته"), value: "\(rec.category.emoji) \(lang == .persian ? rec.category.persianName : rec.category.rawValue)", color: AppColors.forCategory(rec.category))
+                            resultRow(label: t("Category","دسته"),
+                                      value: "\(rec.category.emoji) \(lang == .persian ? rec.category.persianName : rec.category.rawValue)",
+                                      color: AppColors.forCategory(rec.category))
                         }
-                        resultRow(label: t("Base score","امتیاز پایه"), value: "\(rec.basePoints) pts", color: AppColors.forPoints(rec.basePoints))
+                        resultRow(label: t("Base score","امتیاز پایه"), value: lang == .persian ? "\(rec.basePoints) امتیاز" : "\(rec.basePoints) pts", color: AppColors.forPoints(rec.basePoints))
                         if rec.faultCount > 0 {
-                            resultRow(label: t("Faults","خطاها"), value: "-\(rec.faultCount) pts", color: AppColors.orange)
+                            resultRow(label: t("Faults","خطاها"), value: lang == .persian ? "−\(rec.faultCount) امتیاز" : "−\(rec.faultCount) pts", color: AppColors.orange)
                         }
-                        if rec.hintUsed {
-                            resultRow(label: t("Hint used","راهنما استفاده شد"), value: "-1 pt", color: AppColors.purple)
+                        if rec.bonusPoints > 0 {
+                            resultRow(
+                                label: rec.bonusPoints == 2
+                                    ? t("Speed bonus (< 30% time) ⚡","جایزه سرعت (زیر ۳۰٪ وقت) ⚡")
+                                    : t("Speed bonus (< 60% time) ⚡","جایزه سرعت (زیر ۶۰٪ وقت) ⚡"),
+                                value: lang == .persian ? "+\(rec.bonusPoints) امتیاز" : "+\(rec.bonusPoints) pts",
+                                color: AppColors.purple
+                            )
                         }
                         Divider().padding(.vertical, 8)
                         HStack {
@@ -741,9 +857,7 @@ struct TurnResultView: View {
                     .shadow(color: .black.opacity(0.08), radius: 14, y: 6)
                     .padding(.horizontal, 24)
                 }
-
                 Spacer()
-
                 Button {
                     appSettings.hapticNotification(.success)
                     vm.proceedToNextTurn()
@@ -763,26 +877,22 @@ struct TurnResultView: View {
     }
 
     var record: TurnRecord? { vm.lastTurnRecord }
-
     func resultRow(label: String, value: String, color: Color) -> some View {
         HStack {
             Text(label).font(AppFonts.rounded(14)).foregroundStyle(AppColors.textSecondary)
             Spacer()
             Text(value).font(AppFonts.rounded(14, weight: .bold)).foregroundStyle(color)
-        }
-        .padding(.vertical, 6)
+        }.padding(.vertical, 6)
     }
 }
 
-// MARK: - Game Over / Final Scoresheet
+// MARK: - Game Over
 
 struct GameOverView: View {
     var vm: GameViewModel
     var appSettings: AppSettings
-
     var lang: AppLanguage { vm.language }
     func t(_ en: String, _ fa: String) -> String { lang == .persian ? fa : en }
-
     @State private var appeared = false
     @State private var showFullSheet = false
 
@@ -798,35 +908,31 @@ struct GameOverView: View {
                         .animation(.spring(response: 0.6, dampingFraction: 0.5).delay(0.2), value: appeared)
                     Text(t("Game Over!","بازی تموم شد!"))
                         .font(.system(size: 34, weight: .black, design: .rounded)).foregroundStyle(.white)
-                    // Show winner only if one team is ahead; otherwise declare a draw
                     let topScore = vm.sortedTeams.first?.totalScore ?? 0
                     let leaders = vm.sortedTeams.filter { $0.totalScore == topScore }
                     if leaders.count == 1, let winner = leaders.first {
                         HStack(spacing: 6) {
                             Text(winner.icon)
                             Text(t("\(winner.name) Wins! 🎉","\(winner.name) برنده شد! 🎉"))
-                        }
-                        .font(AppFonts.rounded(19, weight: .bold)).foregroundStyle(winner.color)
+                        }.font(AppFonts.rounded(19, weight: .bold)).foregroundStyle(winner.color)
                     } else {
                         HStack(spacing: 6) {
                             ForEach(leaders) { team in Text(team.icon) }
                             Text(t("It's a Draw! 🤝","مساوی! 🤝"))
-                        }
-                        .font(AppFonts.rounded(19, weight: .bold)).foregroundStyle(Color.white)
+                        }.font(AppFonts.rounded(19, weight: .bold)).foregroundStyle(.white)
                     }
-                }
-                .padding(.top, 60).padding(.bottom, 28)
+                }.padding(.top, 60).padding(.bottom, 28)
 
-                // Podium
                 VStack(spacing: 10) {
                     ForEach(Array(vm.sortedTeams.enumerated()), id: \.element.id) { rank, team in
                         HStack(spacing: 12) {
-                            Text(rankEmoji(rank)).font(.system(size: 24)).frame(width: 32)
+                            Text(rankEmoji(rank, topScore: vm.sortedTeams.first?.totalScore ?? 0, score: team.totalScore))
+                                .font(.system(size: 24)).frame(width: 32)
                             Text(team.icon).font(.system(size: 20))
                             Text(team.name).font(AppFonts.rounded(16, weight: .bold)).foregroundStyle(.white)
                             Spacer()
                             Text("\(team.totalScore)").font(.system(size: 28, weight: .black, design: .rounded)).foregroundStyle(team.color)
-                            Text(t("pts","امتیاز")).font(AppFonts.rounded(13, weight: .bold)).foregroundStyle(.white.opacity(0.45))
+                            Text(lang == .persian ? "امتیاز" : "pts").font(AppFonts.rounded(13, weight: .bold)).foregroundStyle(.white.opacity(0.45))
                         }
                         .padding(.horizontal, 16).padding(.vertical, 12)
                         .background(Color.white.opacity(rank == 0 ? 0.12 : 0.06))
@@ -834,13 +940,10 @@ struct GameOverView: View {
                         .offset(x: appeared ? 0 : 50).opacity(appeared ? 1 : 0)
                         .animation(.spring(response: 0.5).delay(Double(rank)*0.1+0.35), value: appeared)
                     }
-                }
-                .padding(.horizontal, 20)
+                }.padding(.horizontal, 20)
 
                 Spacer()
-
                 VStack(spacing: 10) {
-                    // View full scoresheet
                     Button { showFullSheet = true } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "list.clipboard.fill").font(.system(size: 16, weight: .bold))
@@ -849,10 +952,7 @@ struct GameOverView: View {
                         .foregroundStyle(AppColors.text).frame(maxWidth: .infinity).padding(.vertical, 17)
                         .background(Color.white).clipShape(RoundedRectangle(cornerRadius: 16))
                     }
-
-                    Button {
-                        appSettings.hapticNotification(.success); vm.startGame()
-                    } label: {
+                    Button { appSettings.hapticNotification(.success); vm.startGame() } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "arrow.counterclockwise").font(.system(size: 15, weight: .bold))
                             Text(t("Play Again","دوباره بازی")).font(AppFonts.rounded(17, weight: .heavy))
@@ -860,14 +960,12 @@ struct GameOverView: View {
                         .foregroundStyle(.white).frame(maxWidth: .infinity).padding(.vertical, 17)
                         .background(Color.white.opacity(0.18)).clipShape(RoundedRectangle(cornerRadius: 16))
                     }
-
                     Button { vm.exitGame() } label: {
                         Text(t("Main Menu","منوی اصلی")).font(AppFonts.rounded(15, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.6)).frame(maxWidth: .infinity).padding(.vertical, 14)
+                            .foregroundStyle(.white.opacity(0.6)).frame(maxWidth: .infinity).padding(.vertical, 15)
                             .background(Color.white.opacity(0.08)).clipShape(RoundedRectangle(cornerRadius: 16))
                     }
-                }
-                .padding(.horizontal, 20).padding(.bottom, 44)
+                }.padding(.horizontal, 20).padding(.bottom, 44)
             }
         }
         .navigationBarBackButtonHidden()
@@ -887,25 +985,18 @@ struct GameOverView: View {
         }.ignoresSafeArea()
     }
 
-    func rankEmoji(_ rank: Int) -> String {
-        let topScore = vm.sortedTeams.first?.totalScore ?? 0
-        let sorted = vm.sortedTeams
-        let teamScore = rank < sorted.count ? sorted[rank].totalScore : -1
-        // If this team is tied at the top, everyone gets gold
-        let leadersCount = sorted.filter { $0.totalScore == topScore }.count
-        if teamScore == topScore && leadersCount > 1 { return "🥇" }
+    func rankEmoji(_ rank: Int, topScore: Int, score: Int) -> String {
+        let leaders = vm.sortedTeams.filter { $0.totalScore == topScore }
+        if score == topScore && leaders.count > 1 { return "🥇" }
         switch rank { case 0: return "🥇"; case 1: return "🥈"; case 2: return "🥉"; default: return "\(rank+1)." }
     }
 }
 
-// MARK: - Full Scoresheet
+// MARK: - Scoresheet
 
 struct ScoresheetView: View {
-    let records: [TurnRecord]
-    let teams: [Team]
-    let language: AppLanguage
+    let records: [TurnRecord]; let teams: [Team]; let language: AppLanguage
     @Environment(\.dismiss) var dismiss
-
     func t(_ en: String, _ fa: String) -> String { language == .persian ? fa : en }
 
     var body: some View {
@@ -921,27 +1012,23 @@ struct ScoresheetView: View {
                                     Text(team.icon).font(.system(size: 28))
                                     Text(team.name).font(AppFonts.rounded(13, weight: .bold)).foregroundStyle(AppColors.text).lineLimit(1)
                                     Text("\(team.totalScore)").font(.system(size: 26, weight: .black, design: .rounded)).foregroundStyle(team.color)
-                                    Text(t("pts","امتیاز")).font(AppFonts.rounded(11)).foregroundStyle(AppColors.textSecondary)
+                                    Text(language == .persian ? "امتیاز" : "pts").font(AppFonts.rounded(11)).foregroundStyle(AppColors.textSecondary)
                                 }
-                                .frame(maxWidth: .infinity).padding(12)
-                                .background(Color.white).clipShape(RoundedRectangle(cornerRadius: 16))
+                                .frame(maxWidth: .infinity).padding(12).background(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
                                 .shadow(color: team.color.opacity(0.15), radius: 8, y: 4)
                             }
-                        }
-                        .padding(.horizontal, 20).padding(.top, 8)
+                        }.padding(.horizontal, 20).padding(.top, 8)
 
-                        // Stats summary
-                        let totalHints = records.filter { $0.hintUsed }.count
+                        // Stats
                         let totalFaults = records.map { $0.faultCount }.reduce(0, +)
                         let guessed = records.filter { $0.guessed }.count
                         HStack(spacing: 10) {
                             statBadge(icon: "checkmark.circle.fill", value: "\(guessed)/\(records.count)", label: t("Guessed","حدس زده"), color: AppColors.green)
                             statBadge(icon: "exclamationmark.circle.fill", value: "\(totalFaults)", label: t("Faults","خطاها"), color: AppColors.orange)
-                            statBadge(icon: "lightbulb.fill", value: "\(totalHints)", label: t("Hints","راهنماها"), color: AppColors.purple)
-                        }
-                        .padding(.horizontal, 20)
+                        }.padding(.horizontal, 20)
 
-                        // Per-team turn records
+                        // Per-team turns
                         ForEach(teams) { team in
                             let teamIdx = teams.firstIndex(where: { $0.id == team.id }) ?? -1
                             let teamRecs = records.filter { $0.teamIndex == teamIdx }
@@ -951,56 +1038,46 @@ struct ScoresheetView: View {
                                         Text(team.icon).font(.system(size: 18))
                                         Text(team.name).font(AppFonts.rounded(16, weight: .black)).foregroundStyle(AppColors.text)
                                         Spacer()
-                                        Text("\(team.totalScore) pts").font(AppFonts.rounded(14, weight: .heavy)).foregroundStyle(team.color)
-                                    }
-                                    .padding(.horizontal, 20)
-
-                                    ForEach(teamRecs) { rec in
-                                        turnRow(rec: rec)
-                                    }
+                                        Text(language == .persian ? "\(team.totalScore) امتیاز" : "\(team.totalScore) pts").font(AppFonts.rounded(14, weight: .heavy)).foregroundStyle(team.color)
+                                    }.padding(.horizontal, 20)
+                                    ForEach(teamRecs) { rec in turnRow(rec: rec) }
                                 }
                             }
                         }
-                    }
-                    .padding(.bottom, 40)
+                    }.padding(.bottom, 40)
                 }
             }
             .navigationTitle(t("Scoresheet","کارنامه"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(t("Done","تأیید")) { dismiss() }.font(AppFonts.rounded(16, weight: .bold)).foregroundStyle(AppColors.blue)
+                    Button(t("Done","تأیید")) { dismiss() }
+                        .font(AppFonts.rounded(16, weight: .bold)).foregroundStyle(AppColors.blue)
                 }
             }
-        }
-        .layoutDir(language)
+        }.layoutDir(language)
     }
 
     func turnRow(rec: TurnRecord) -> some View {
         HStack(spacing: 12) {
-            // Points badge
             VStack(spacing: 2) {
                 Text(rec.guessed ? "+\(rec.finalPoints)" : "0")
                     .font(.system(size: 18, weight: .black, design: .rounded))
                     .foregroundStyle(rec.guessed ? AppColors.forPoints(rec.basePoints) : AppColors.textSecondary)
-                Text("\(rec.basePoints)★").font(AppFonts.rounded(10)).foregroundStyle(AppColors.textSecondary)
-            }
-            .frame(width: 44)
-
+                Text(language == .persian ? "\(rec.basePoints)★" : "\(rec.basePoints)★").font(AppFonts.rounded(10)).foregroundStyle(AppColors.textSecondary)
+            }.frame(width: 44)
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(rec.word).font(AppFonts.rounded(15, weight: .bold)).foregroundStyle(AppColors.text)
-                    if rec.hintUsed {
-                        Image(systemName: "lightbulb.fill").font(.system(size: 10)).foregroundStyle(AppColors.purple)
-                    }
-                }
+                Text(rec.word).font(AppFonts.rounded(15, weight: .bold)).foregroundStyle(AppColors.text)
                 HStack(spacing: 6) {
                     if !rec.isCustom { Text(rec.category.emoji).font(.system(size: 12)) }
                     if let actor = rec.actorName {
                         Text(actor).font(AppFonts.rounded(11)).foregroundStyle(AppColors.textSecondary)
                     }
                     if rec.faultCount > 0 {
-                        Text("⚠️ \(rec.faultCount) fault\(rec.faultCount > 1 ? "s" : "")").font(AppFonts.rounded(11)).foregroundStyle(AppColors.orange)
+                        Text("⚠️ \(rec.faultCount)").font(AppFonts.rounded(11)).foregroundStyle(AppColors.orange)
+                    }
+                    if rec.bonusPoints > 0 {
+                        Text("⚡+\(rec.bonusPoints)").font(AppFonts.rounded(11)).foregroundStyle(AppColors.purple)
                     }
                 }
             }
@@ -1009,8 +1086,7 @@ struct ScoresheetView: View {
                 .foregroundStyle(rec.guessed ? AppColors.green : AppColors.textSecondary.opacity(0.5))
                 .font(.system(size: 20))
         }
-        .padding(.horizontal, 20).padding(.vertical, 10)
-        .background(Color.white)
+        .padding(.horizontal, 20).padding(.vertical, 10).background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .shadow(color: .black.opacity(0.04), radius: 6, y: 3)
         .padding(.horizontal, 20)
@@ -1022,8 +1098,8 @@ struct ScoresheetView: View {
             Text(value).font(.system(size: 20, weight: .black, design: .rounded)).foregroundStyle(AppColors.text)
             Text(label).font(AppFonts.rounded(11)).foregroundStyle(AppColors.textSecondary)
         }
-        .frame(maxWidth: .infinity).padding(.vertical, 14)
-        .background(Color.white).clipShape(RoundedRectangle(cornerRadius: 14))
+        .frame(maxWidth: .infinity).padding(.vertical, 14).background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
         .shadow(color: color.opacity(0.12), radius: 8, y: 4)
     }
 }

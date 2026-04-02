@@ -61,6 +61,7 @@ struct AppColors {
         case 3:  return green
         case 5:  return yellow
         case 7:  return red
+        case 9:  return purple
         default: return blue
         }
     }
@@ -74,11 +75,20 @@ struct AppFonts {
 }
 
 // MARK: - Haptics
+// Reads hapticsEnabled from UserDefaults so the static helper respects the setting
+// even in components that don't have direct access to AppSettings.
 struct Haptics {
+    static var isEnabled: Bool {
+        UserDefaults.standard.object(forKey: "pantomim.hapticsEnabled") == nil
+            ? true
+            : UserDefaults.standard.bool(forKey: "pantomim.hapticsEnabled")
+    }
     static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
+        guard isEnabled else { return }
         UIImpactFeedbackGenerator(style: style).impactOccurred()
     }
     static func notification(_ type: UINotificationFeedbackGenerator.FeedbackType) {
+        guard isEnabled else { return }
         UINotificationFeedbackGenerator().notificationOccurred(type)
     }
 }
@@ -87,69 +97,144 @@ struct Haptics {
 @Observable
 final class AppSettings {
     var soundEnabled: Bool = true
-    var hapticsEnabled: Bool = true
-    var partyMusicEnabled: Bool = false
+    var partyMusicEnabled: Bool = true
     var countdownBeepEnabled: Bool = true
     var showWordTranslation: Bool = true
-    var hasSeenOnboarding: Bool = false
+
+    var hapticsEnabled: Bool {
+        get {
+            UserDefaults.standard.object(forKey: "pantomim.hapticsEnabled") == nil
+                ? true
+                : UserDefaults.standard.bool(forKey: "pantomim.hapticsEnabled")
+        }
+        set { UserDefaults.standard.set(newValue, forKey: "pantomim.hapticsEnabled") }
+    }
+
+    // Persisted across launches via UserDefaults
+    var hasSeenOnboarding: Bool {
+        get { UserDefaults.standard.bool(forKey: "pantomim.hasSeenOnboarding") }
+        set { UserDefaults.standard.set(newValue, forKey: "pantomim.hasSeenOnboarding") }
+    }
 
     private var musicPlayer: AVAudioPlayer?
+    private var faultPlayer: AVAudioPlayer?
     private var musicTask: Task<Void, Never>?
+
+    init() {
+        activateAudioSession()
+        faultPlayer = makeBuzzPlayer()
+    }
+
+    private func activateAudioSession() {
+        try? AVAudioSession.sharedInstance().setCategory(
+            .playback, mode: .default,
+            options: [.mixWithOthers, .duckOthers]
+        )
+        try? AVAudioSession.sharedInstance().setActive(true)
+    }
+
+    // Descending two-tone game-show "WRONG!" buzzer:
+    // Hits hard at 480Hz, sweeps down to 100Hz, with hard-clipped distortion for maximum impact.
+    private func makeBuzzPlayer() -> AVAudioPlayer? {
+        let sampleRate: Double = 44100
+        let duration: Double = 0.45
+        let frameCount = Int(sampleRate * duration)
+        var samples = [Int16]()
+        samples.reserveCapacity(frameCount)
+        for i in 0..<frameCount {
+            let t = Double(i) / sampleRate
+            let progress = t / duration
+            // Frequency sweeps 480Hz → 100Hz
+            let freq = 480.0 - (380.0 * progress)
+            // Mix fundamental + 3rd harmonic for harsh square-ish timbre
+            let wave = sin(2 * .pi * freq * t) * 0.65
+                     + sin(2 * .pi * freq * 3.0 * t) * 0.35
+            // Instant attack, hold, sharp fade at the end
+            let attack = min(1.0, Double(i) / (sampleRate * 0.004))
+            let fade   = progress > 0.80 ? 1.0 - ((progress - 0.80) / 0.20) : 1.0
+            // Hard clip at 0.90 → deliberate distortion = buzzer character
+            let raw    = max(-0.90, min(0.90, wave * attack * fade))
+            samples.append(Int16(raw * Double(Int16.max)))
+        }
+        let dataSize = frameCount * 2
+        var wav = Data()
+        func appendLE<T: FixedWidthInteger>(_ v: T) {
+            var v = v.littleEndian
+            wav.append(contentsOf: withUnsafeBytes(of: &v) { Array($0) })
+        }
+        wav.append(contentsOf: "RIFF".utf8); appendLE(UInt32(36 + dataSize))
+        wav.append(contentsOf: "WAVEfmt ".utf8); appendLE(UInt32(16))
+        appendLE(UInt16(1)); appendLE(UInt16(1))
+        appendLE(UInt32(sampleRate)); appendLE(UInt32(UInt32(sampleRate) * 2))
+        appendLE(UInt16(2)); appendLE(UInt16(16))
+        wav.append(contentsOf: "data".utf8); appendLE(UInt32(dataSize))
+        for s in samples { var s = s.littleEndian; wav.append(contentsOf: withUnsafeBytes(of: &s) { Array($0) }) }
+        let player = try? AVAudioPlayer(data: wav, fileTypeHint: "wav")
+        player?.volume = 1.0; player?.prepareToPlay()
+        return player
+    }
 
     func startPartyMusic() {
         guard partyMusicEnabled, soundEnabled else { return }
         stopPartyMusic()
+        activateAudioSession()
         if let url = Bundle.main.url(forResource: "party", withExtension: "mp3") {
-            try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-            try? AVAudioSession.sharedInstance().setActive(true)
             musicPlayer = try? AVAudioPlayer(contentsOf: url)
-            musicPlayer?.numberOfLoops = -1
-            musicPlayer?.volume = 0.45
-            musicPlayer?.play()
+            musicPlayer?.numberOfLoops = -1; musicPlayer?.volume = 0.6; musicPlayer?.play()
         } else {
-            // Rhythmic fallback beeps
             musicTask = Task { @MainActor in
                 let sounds: [SystemSoundID] = [1103, 1104, 1103, 1104, 1103, 1103, 1104, 1103]
                 var i = 0
                 while !Task.isCancelled {
                     AudioServicesPlaySystemSound(sounds[i % sounds.count])
-                    try? await Task.sleep(for: .milliseconds(480))
-                    i += 1
+                    try? await Task.sleep(for: .milliseconds(480)); i += 1
+                }
+            }
+        }
+    }
+
+    func pausePartyMusic() {
+        musicPlayer?.pause(); musicTask?.cancel(); musicTask = nil
+    }
+
+    func resumePartyMusic() {
+        guard partyMusicEnabled, soundEnabled else { return }
+        if let player = musicPlayer { player.play() }
+        else {
+            musicTask = Task { @MainActor in
+                let sounds: [SystemSoundID] = [1103, 1104, 1103, 1104, 1103, 1103, 1104, 1103]
+                var i = 0
+                while !Task.isCancelled {
+                    AudioServicesPlaySystemSound(sounds[i % sounds.count])
+                    try? await Task.sleep(for: .milliseconds(480)); i += 1
                 }
             }
         }
     }
 
     func stopPartyMusic() {
-        musicPlayer?.stop(); musicPlayer = nil
-        musicTask?.cancel(); musicTask = nil
+        musicPlayer?.stop(); musicPlayer = nil; musicTask?.cancel(); musicTask = nil
     }
 
     func playTap() {
         guard soundEnabled else { return }
-        try? AVAudioSession.sharedInstance().setCategory(.ambient)
-        try? AVAudioSession.sharedInstance().setActive(true)
         AudioServicesPlaySystemSound(1104)
     }
 
     func playCorrect() {
         guard soundEnabled else { return }
-        try? AVAudioSession.sharedInstance().setCategory(.ambient)
-        try? AVAudioSession.sharedInstance().setActive(true)
         AudioServicesPlaySystemSound(1325)
     }
 
     func playFault() {
         guard soundEnabled else { return }
-        try? AVAudioSession.sharedInstance().setCategory(.ambient)
-        try? AVAudioSession.sharedInstance().setActive(true)
-        AudioServicesPlaySystemSound(1073)
+        if let player = makeBuzzPlayer() {
+            player.volume = 1.0; player.play(); faultPlayer = player
+        }
     }
 
     func playCountdownBeep() {
         guard countdownBeepEnabled, soundEnabled else { return }
-        try? AVAudioSession.sharedInstance().setCategory(.ambient)
-        try? AVAudioSession.sharedInstance().setActive(true)
         AudioServicesPlaySystemSound(1052)
     }
 
@@ -166,7 +251,8 @@ final class AppSettings {
 
 // MARK: - Navigation Routes
 enum AppRoute: Hashable {
-    case teamReady
+    case teamReady   // actor spotlight + scoreboard
+    case wordPick    // opponent picks word
     case playing
     case turnResult
     case gameOver
@@ -180,8 +266,7 @@ struct FatCard<Content: View>: View {
     var body: some View {
         content.background {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white)
-                .shadow(color: color.opacity(0.15), radius: 12, y: 6)
+                .fill(Color.white).shadow(color: color.opacity(0.15), radius: 12, y: 6)
         }
     }
 }
@@ -207,8 +292,7 @@ struct LanguageToggle: View {
         .padding(3)
         .background {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white)
-                .shadow(color: .black.opacity(0.08), radius: 8, y: 4)
+                .fill(Color.white).shadow(color: .black.opacity(0.08), radius: 8, y: 4)
         }
     }
 }
@@ -264,13 +348,6 @@ struct SettingsToggleRow: View {
     }
 }
 
-extension View {
-    func layoutDir(_ lang: AppLanguage) -> some View {
-        environment(\.layoutDirection, lang.isRTL ? .rightToLeft : .leftToRight)
-    }
-}
-
-// MARK: - Points Badge
 struct PointsBadge: View {
     let points: Int
     var body: some View {
@@ -278,9 +355,13 @@ struct PointsBadge: View {
             Image(systemName: "star.fill").font(.system(size: 10, weight: .bold))
             Text("\(points)").font(AppFonts.rounded(13, weight: .black))
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 10).padding(.vertical, 5)
-        .background(AppColors.forPoints(points))
-        .clipShape(Capsule())
+        .foregroundStyle(.white).padding(.horizontal, 10).padding(.vertical, 5)
+        .background(AppColors.forPoints(points)).clipShape(Capsule())
+    }
+}
+
+extension View {
+    func layoutDir(_ lang: AppLanguage) -> some View {
+        environment(\.layoutDirection, lang.isRTL ? .rightToLeft : .leftToRight)
     }
 }

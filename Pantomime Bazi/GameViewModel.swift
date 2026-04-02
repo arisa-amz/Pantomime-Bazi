@@ -21,7 +21,7 @@ struct Team: Identifiable {
     let id = UUID()
     var name: String
     var icon: String = "🎭"
-    var playerCount: Int = 2          // used when useNamedMembers is false
+    var playerCount: Int = 2
     var members: [TeamMember] = []
     var useNamedMembers: Bool = false
     var color: Color
@@ -47,7 +47,7 @@ extension Array {
     }
 }
 
-// MARK: - Turn Record (for scoresheet)
+// MARK: - Turn Record
 struct TurnRecord: Identifiable {
     let id = UUID()
     let teamIndex: Int
@@ -57,13 +57,12 @@ struct TurnRecord: Identifiable {
     let isCustom: Bool
     let basePoints: Int
     let faultCount: Int
-    let hintUsed: Bool
+    let bonusPoints: Int   // 0, 1, or 2 based on how fast they guessed
     let guessed: Bool
 
     var finalPoints: Int {
         guard guessed else { return 0 }
-        let deductions = faultCount + (hintUsed ? 1 : 0)
-        return max(1, basePoints - deductions)
+        return max(1, basePoints - faultCount) + bonusPoints
     }
 
     var actorName: String? = nil
@@ -75,6 +74,18 @@ struct GameSettings {
         Team(name: "Team 1", color: Team.defaultColors[0]),
         Team(name: "Team 2", color: Team.defaultColors[1]),
     ]
+
+    // Re-localise team names that still have default names when language changes
+    mutating func relocaliseDefaultNames(to language: AppLanguage) {
+        for i in teams.indices {
+            let enName = Team.defaultName(index: i, language: .english)
+            let faName = Team.defaultName(index: i, language: .persian)
+            // Only update if name matches either default (user hasn't customised it)
+            if teams[i].name == enName || teams[i].name == faName {
+                teams[i].name = Team.defaultName(index: i, language: language)
+            }
+        }
+    }
     var rounds: Int = 3
     var timePerTurn: Int = 60
     var language: AppLanguage = .english
@@ -82,21 +93,24 @@ struct GameSettings {
 
 // MARK: - Game Phase
 enum GamePhase: Equatable {
-    case setup, onboarding, teamReady, playing, turnResult, gameOver
+    case setup, teamReady, wordPick, playing, turnResult, gameOver
 }
 
 // MARK: - Word Pool Manager
-// Tracks used words per point tier so no word repeats until the tier is exhausted
 final class WordPoolManager {
     private var usedIDs: [Int: Set<UUID>] = [3: [], 5: [], 7: []]
-    private var pools:   [Int: [WordEntry]] = [:]
+    private var pools: [Int: [WordEntry]] = [:]
+    private var poolCategories: [Int: Set<WordCategory>] = [:]
 
-    func reset() { usedIDs = [3: [], 5: [], 7: []]; pools = [:] }
+    func reset() {
+        usedIDs = [3: [], 5: [], 7: []]; pools = [:]; poolCategories = [:]
+    }
 
     func draw(points: Int, categories: Set<WordCategory>) -> WordEntry? {
-        if pools[points] == nil || pools[points]!.isEmpty {
-            rebuild(points: points, categories: categories)
-        }
+        let needsRebuild = pools[points] == nil
+            || pools[points]!.isEmpty
+            || poolCategories[points] != categories
+        if needsRebuild { rebuild(points: points, categories: categories) }
         guard var pool = pools[points], !pool.isEmpty else { return nil }
         let word = pool.removeFirst()
         pools[points] = pool
@@ -105,10 +119,10 @@ final class WordPoolManager {
     }
 
     private func rebuild(points: Int, categories: Set<WordCategory>) {
+        poolCategories[points] = categories
         var candidates = wordDatabase.filter {
             $0.points == points && categories.contains($0.category) && !$0.isCustom
         }
-        // Remove already-used; if all used, reset tier
         let used = usedIDs[points, default: []]
         let fresh = candidates.filter { !used.contains($0.id) }
         if fresh.isEmpty { usedIDs[points] = []; candidates = candidates.shuffled() }
@@ -124,44 +138,43 @@ final class GameViewModel {
     var settings = GameSettings()
     var phase: GamePhase = .setup
 
-    // Turn state — set by opponent on TeamReady screen
+    // Word state
     var currentWord: WordEntry? = nil
     var wordRevealed: Bool = false
-    var currentWordPoints: Int = 5       // live score, decremented by fault/hint
+    var currentWordPoints: Int = 5
     var faultCount: Int = 0
-    var hintUsed: Bool = false
-    var timerStarted: Bool = false       // true only after actor taps START
 
+    // Timer
     var timeRemaining: Int = 60
     var isPaused: Bool = false
+    var timerStarted: Bool = false
 
-    var currentTeamIndex: Int = 0        // team whose member is ACTING
+    // Progress
+    var currentTeamIndex: Int = 0
     var currentRound: Int = 1
-    // Per-team actor index — each team cycles its own members independently
     var actorIndexPerTeam: [UUID: Int] = [:]
+
+    // Word pick state (opponent sets these on WordPickView)
+    var turnCategories: Set<WordCategory> = Set(WordCategory.allCases)
+    var customWordInput: String = ""
+    var selectedPoints: Int = 5
 
     var turnRecords: [TurnRecord] = []
     var lastTurnRecord: TurnRecord? = nil
-
-    // Selected categories for this turn (opponent chooses)
-    var turnCategories: Set<WordCategory> = Set(WordCategory.allCases)
-    // Custom word input (opponent types)
-    var customWordInput: String = ""
-    // Selected points tier (opponent chooses)
-    var selectedPoints: Int = 5
 
     private let wordPool = WordPoolManager()
     private var timerTask: Task<Void, Never>?
 
     var language: AppLanguage { settings.language }
+
+    func updateLanguage(_ lang: AppLanguage) {
+        settings.relocaliseDefaultNames(to: lang)
+        settings.language = lang
+    }
     var currentTeam: Team { settings.teams[currentTeamIndex] }
 
-    // Index of the OPPONENT team (the one picking the word)
     var opponentTeamIndex: Int {
-        // Simplest: previous team picks for current team
-        // With 2 teams: team 0 acts, team 1 picks
-        let idx = (currentTeamIndex + settings.teams.count - 1) % settings.teams.count
-        return idx
+        (currentTeamIndex + settings.teams.count - 1) % settings.teams.count
     }
     var opponentTeam: Team { settings.teams[opponentTeamIndex] }
 
@@ -171,17 +184,15 @@ final class GameViewModel {
         let teamID = team.id
         let idx = actorIndexPerTeam[teamID, default: 0]
         if !team.members.isEmpty {
-            // Named members defined — cycle through them
             return team.members[idx % team.members.count].name
         } else {
-            // Toggle is on but no names entered — use "Player N" with playerCount
             let count = max(1, team.playerCount)
             let playerNum = (idx % count) + 1
             return language == .persian ? "بازیکن \(playerNum)" : "Player \(playerNum)"
         }
     }
 
-    // MARK: - Start Game
+    // MARK: - Game start
 
     func startGame() {
         currentRound = 1
@@ -194,7 +205,24 @@ final class GameViewModel {
         navPath = [.teamReady]
     }
 
-    // MARK: - Word Selection (by opponent on TeamReady)
+    // MARK: - TeamReady → WordPick
+
+    func proceedToWordPick() {
+        // Reset word state for this turn
+        currentWord = nil
+        customWordInput = ""
+        selectedPoints = 5
+        faultCount = 0
+        wordRevealed = false
+        timerStarted = false
+        phase = .wordPick
+        // Stack: teamReady is already [.teamReady], push wordPick on top
+        navPath = [.teamReady, .wordPick]
+        // Pre-draw a word for the opponent to see
+        refreshWord()
+    }
+
+    // MARK: - Word Selection (by opponent on WordPickView)
 
     func refreshWord() {
         guard customWordInput.trimmingCharacters(in: .whitespaces).isEmpty else { return }
@@ -204,29 +232,25 @@ final class GameViewModel {
         }
     }
 
-    func setCustomWord() {
-        let text = customWordInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-        currentWord = WordEntry(customText: text)
-        currentWordPoints = 7
-    }
-
+    /// Called when opponent confirms their word choice and wants to start
     func confirmWordAndStart(appSettings: AppSettings) {
-        if !customWordInput.trimmingCharacters(in: .whitespaces).isEmpty {
-            setCustomWord()
+        let customText = customWordInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !customText.isEmpty {
+            currentWord = WordEntry(customText: customText)
+            currentWordPoints = 9
         } else if currentWord == nil {
             refreshWord()
+        } else {
+            currentWordPoints = currentWord!.points
         }
         customWordInput = ""
         wordRevealed = false
         faultCount = 0
-        hintUsed = false
         timerStarted = false
         isPaused = false
         timeRemaining = settings.timePerTurn
         phase = .playing
         navPath = [.playing]
-        appSettings.startPartyMusic()
     }
 
     // MARK: - Playing actions
@@ -234,10 +258,24 @@ final class GameViewModel {
     func startTimer(appSettings: AppSettings) {
         guard !timerStarted else { return }
         timerStarted = true
+        appSettings.startPartyMusic()
         runTimer(appSettings: appSettings)
     }
 
     func toggleReveal() { wordRevealed.toggle() }
+
+    /// Actor can swap the word before starting the timer — costs 1 point
+    func changeWordBeforeStart() {
+        guard !timerStarted else { return }
+        // Deduct 1 pt (min 1)
+        currentWordPoints = max(1, currentWordPoints - 1)
+        // Draw a new word from the same pool
+        if let w = wordPool.draw(points: selectedPoints, categories: turnCategories) {
+            currentWord = w
+            // Keep the deducted points value — don't reset to word.points
+        }
+        wordRevealed = false
+    }
 
     func applyFault(appSettings: AppSettings) {
         guard currentWordPoints > 1 else { return }
@@ -247,21 +285,22 @@ final class GameViewModel {
         appSettings.hapticNotification(.warning)
     }
 
-    func useHint(appSettings: AppSettings) {
-        guard !hintUsed, currentWordPoints == 7, currentWord?.hint != nil else { return }
-        hintUsed = true
-        currentWordPoints = max(1, currentWordPoints - 1)
-        appSettings.haptic(.medium)
-    }
-
     func teamGuessedCorrectly(appSettings: AppSettings) {
-        stopTimer()
-        appSettings.stopPartyMusic()
+        // Time bonus: if >70% time remains (guessed in first 30%) → +2
+        //             if >40% time remains (guessed in first 60%) → +1
+        let fractionRemaining = Double(timeRemaining) / Double(settings.timePerTurn)
+        let bonus: Int
+        if fractionRemaining > 0.70 { bonus = 2 }
+        else if fractionRemaining > 0.40 { bonus = 1 }
+        else { bonus = 0 }
+
+        let earned = currentWordPoints + bonus
+        settings.teams[currentTeamIndex].totalScore += earned
         appSettings.playCorrect()
         appSettings.hapticNotification(.success)
-        let pts = currentWordPoints
-        settings.teams[currentTeamIndex].totalScore += pts
-        recordTurn(guessed: true)
+        appSettings.stopPartyMusic()
+        stopTimer()
+        recordTurn(guessed: true, bonus: bonus)
         phase = .turnResult
         navPath = [.turnResult]
     }
@@ -274,7 +313,7 @@ final class GameViewModel {
         navPath = [.turnResult]
     }
 
-    private func recordTurn(guessed: Bool) {
+    private func recordTurn(guessed: Bool, bonus: Int = 0) {
         guard let word = currentWord else { return }
         let rec = TurnRecord(
             teamIndex: currentTeamIndex,
@@ -284,7 +323,7 @@ final class GameViewModel {
             isCustom: word.isCustom,
             basePoints: word.points,
             faultCount: faultCount,
-            hintUsed: hintUsed,
+            bonusPoints: bonus,
             guessed: guessed,
             actorName: currentActorName
         )
@@ -292,37 +331,26 @@ final class GameViewModel {
         lastTurnRecord = rec
     }
 
-    // MARK: - After turn result: advance
+    // MARK: - Advance
 
     func proceedToNextTurn() {
-        // Advance the actor index for the team that JUST acted, before currentTeamIndex changes
-        let justActedTeam = currentTeamIndex
-        advanceActorIndex(for: justActedTeam)
+        let justActed = currentTeamIndex
+        let teamID = settings.teams[justActed].id
+        actorIndexPerTeam[teamID, default: 0] += 1
 
         let nextTeam = currentTeamIndex + 1
         if nextTeam >= settings.teams.count {
             if currentRound >= settings.rounds {
-                phase = .gameOver
-                navPath = [.gameOver]
+                phase = .gameOver; navPath = [.gameOver]
             } else {
-                currentRound += 1
-                currentTeamIndex = 0
-                phase = .teamReady
-                navPath = [.teamReady]
+                currentRound += 1; currentTeamIndex = 0
+                phase = .teamReady; navPath = [.teamReady]
             }
         } else {
             currentTeamIndex = nextTeam
-            phase = .teamReady
-            navPath = [.teamReady]
+            phase = .teamReady; navPath = [.teamReady]
         }
-        currentWord = nil
-        selectedPoints = 5
-        customWordInput = ""
-    }
-
-    private func advanceActorIndex(for teamIndex: Int) {
-        let teamID = settings.teams[teamIndex].id
-        actorIndexPerTeam[teamID, default: 0] += 1
+        currentWord = nil; selectedPoints = 5; customWordInput = ""
     }
 
     // MARK: - Timer
@@ -342,8 +370,7 @@ final class GameViewModel {
                     appSettings.hapticNotification(.warning)
                     self.stopTimer()
                     self.recordTurn(guessed: false)
-                    self.phase = .turnResult
-                    self.navPath = [.turnResult]
+                    self.phase = .turnResult; self.navPath = [.turnResult]
                     return
                 }
             }
@@ -357,9 +384,7 @@ final class GameViewModel {
     func exitGame() {
         stopTimer()
         for i in settings.teams.indices { settings.teams[i].totalScore = 0 }
-        turnRecords = []
-        phase = .setup
-        navPath = []
+        turnRecords = []; phase = .setup; navPath = []
     }
 
     var sortedTeams: [Team] { settings.teams.sorted { $0.totalScore > $1.totalScore } }
