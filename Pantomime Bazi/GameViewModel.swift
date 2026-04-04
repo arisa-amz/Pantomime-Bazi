@@ -6,6 +6,7 @@
 //
 
 
+
 import Foundation
 import SwiftUI
 import Observation
@@ -155,7 +156,7 @@ final class GameViewModel {
     var actorIndexPerTeam: [UUID: Int] = [:]
 
     // Word pick state (opponent sets these on WordPickView)
-    var turnCategories: Set<WordCategory> = Set(WordCategory.allCases)
+    var turnCategories: Set<WordCategory> = []  // empty by default; user picks on WordPickView
     var customWordInput: String = ""
     var selectedPoints: Int = 5
 
@@ -211,21 +212,21 @@ final class GameViewModel {
         // Reset word state for this turn
         currentWord = nil
         customWordInput = ""
-        selectedPoints = 5
+        selectedPoints = 0       // 0 = no difficulty selected yet
+        turnCategories = []      // none selected by default; user picks fresh each turn
         faultCount = 0
         wordRevealed = false
         timerStarted = false
         phase = .wordPick
-        // Stack: teamReady is already [.teamReady], push wordPick on top
         navPath = [.teamReady, .wordPick]
-        // Pre-draw a word for the opponent to see
-        refreshWord()
+        // Don't pre-draw — no categories selected yet
     }
 
     // MARK: - Word Selection (by opponent on WordPickView)
 
     func refreshWord() {
         guard customWordInput.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        guard selectedPoints > 0, !turnCategories.isEmpty else { return }
         if let w = wordPool.draw(points: selectedPoints, categories: turnCategories) {
             currentWord = w
             currentWordPoints = w.points

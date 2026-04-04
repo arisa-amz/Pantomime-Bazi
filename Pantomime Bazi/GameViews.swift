@@ -48,19 +48,7 @@ struct TeamReadyView: View {
                     // Actor spotlight
                     actorSpotlight
 
-                    // Opponent picks note
-                    HStack(spacing: 5) {
-                        Text(opponentTeam.icon).font(.system(size: 14))
-                        Text(opponentTeam.name)
-                            .font(AppFonts.rounded(13, weight: .bold))
-                            .foregroundStyle(Color.white.opacity(0.75))
-                        Text(t("will pick the word", "کلمه رو انتخاب می‌کنه"))
-                            .font(AppFonts.rounded(13))
-                            .foregroundStyle(Color.white.opacity(0.6))
-                    }
-                    .padding(.horizontal, 20).padding(.vertical, 8)
-                    .background(Color.white.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+
                 }
 
                 Spacer()
@@ -241,7 +229,7 @@ struct WordPickView: View {
 
     // Toggle: false = app picks from categories, true = custom word
     @State private var useCustomWord: Bool = false
-    @State private var selectedPoints: Int = 5
+    @State private var selectedPoints: Int = 0  // 0 = nothing selected yet
 
     var body: some View {
         ZStack {
@@ -331,23 +319,33 @@ struct WordPickView: View {
 
             // Big GO button pinned at bottom
             VStack(spacing: 0) {
+                let canStart = selectedPoints > 0 && !vm.turnCategories.isEmpty
                 Button {
+                    guard canStart else { return }
                     appSettings.hapticNotification(.success)
                     vm.selectedPoints = selectedPoints
                     vm.refreshWord()
                     vm.confirmWordAndStart(appSettings: appSettings)
                 } label: {
                     HStack(spacing: 10) {
-                        PointsBadge(points: selectedPoints)
-                        Text(t("START TIMER →", "شروع تایمر →"))
-                            .font(.system(size: 20, weight: .black, design: .rounded)).tracking(1)
+                        if selectedPoints > 0 {
+                            PointsBadge(points: selectedPoints)
+                        } else {
+                            Image(systemName: "arrow.up").font(.system(size: 14, weight: .black))
+                                .foregroundStyle(opponentTeam.color.opacity(0.6))
+                        }
+                        Text(selectedPoints == 0
+                             ? t("Pick a difficulty above", "یه سختی انتخاب کن")
+                             : t("START TIMER →", "شروع تایمر →"))
+                            .font(.system(size: 19, weight: .black, design: .rounded)).tracking(1)
                     }
-                    .foregroundStyle(opponentTeam.color)
+                    .foregroundStyle(canStart ? opponentTeam.color : opponentTeam.color.opacity(0.45))
                     .frame(maxWidth: .infinity).padding(.vertical, 20)
-                    .background(Color.white)
+                    .background(Color.white.opacity(canStart ? 1 : 0.4))
                     .clipShape(RoundedRectangle(cornerRadius: 20))
-                    .shadow(color: .black.opacity(0.2), radius: 14, y: 7)
+                    .shadow(color: .black.opacity(canStart ? 0.2 : 0), radius: 14, y: 7)
                 }
+                .disabled(!canStart)
                 .padding(.horizontal, 28).padding(.bottom, 48).padding(.top, 16)
             }
         }
@@ -422,9 +420,32 @@ struct WordPickView: View {
 
     var categoryGrid: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(t("Categories", "دسته‌بندی‌ها"))
-                .font(AppFonts.rounded(13, weight: .heavy))
-                .foregroundStyle(.white.opacity(0.8))
+            HStack {
+                Text(t("Categories", "دسته‌بندی‌ها"))
+                    .font(AppFonts.rounded(13, weight: .heavy))
+                    .foregroundStyle(.white.opacity(0.8))
+                Spacer()
+                let allSelected = vm.turnCategories.count == WordCategory.allCases.count
+                Button {
+                    Haptics.impact(.light)
+                    if allSelected {
+                        vm.turnCategories = []
+                    } else {
+                        vm.turnCategories = Set(WordCategory.allCases)
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: allSelected ? "checkmark.square.fill" : "square.grid.2x2")
+                            .font(.system(size: 13, weight: .bold))
+                        Text(allSelected ? t("Deselect All","حذف همه") : t("Select All","انتخاب همه"))
+                            .font(AppFonts.rounded(12, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(Color.white.opacity(allSelected ? 0.3 : 0.18))
+                    .clipShape(Capsule())
+                }
+            }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()),
                                  GridItem(.flexible()), GridItem(.flexible())],
@@ -434,7 +455,7 @@ struct WordPickView: View {
                     Button {
                         Haptics.impact(.light)
                         if isOn {
-                            if vm.turnCategories.count > 1 { vm.turnCategories.remove(cat) }
+                            vm.turnCategories.remove(cat)
                         } else {
                             vm.turnCategories.insert(cat)
                         }
@@ -707,6 +728,7 @@ struct PlayingView: View {
             Button {
                 appSettings.hapticNotification(.success)
                 sessionMusicMuted = false  // reset mute each fresh start
+                if vm.wordRevealed { vm.wordRevealed = false }  // hide word when timer starts
                 vm.startTimer(appSettings: appSettings)
             } label: {
                 HStack(spacing: 10) {

@@ -7,6 +7,7 @@
 //
 
 
+
 import SwiftUI
 
 // MARK: - Setup View
@@ -406,7 +407,7 @@ struct TeamCard: View {
                         label: language == .persian
                             ? "تعداد بازیکنان" : "Players",
                         value: $team.playerCount_stub,
-                        range: 1...10,
+                        range: 2...10,
                         color: team.color
                     )
                 }
@@ -1148,4 +1149,3 @@ struct AboutView: View {
         }
     }
 }
-
