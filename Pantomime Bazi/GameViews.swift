@@ -5,6 +5,8 @@
 //  Created by Erfan Yarahmadi on 01/04/2026.
 //
 
+
+
 import SwiftUI
 
 // MARK: - Team Ready (actor spotlight + scoreboard only)
@@ -24,11 +26,6 @@ struct TeamReadyView: View {
     var body: some View {
         ZStack {
             actingTeam.color.ignoresSafeArea()
-
-            // Round watermark
-            Text("\(vm.currentRound)")
-                .font(.system(size: 280, weight: .black, design: .rounded))
-                .foregroundStyle(Color.white.opacity(0.07)).offset(y: -80)
 
             VStack(spacing: 0) {
                 // Scoreboard pinned at top
@@ -74,20 +71,6 @@ struct TeamReadyView: View {
             }
         }
         .navigationBarBackButtonHidden()
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button { appSettings.haptic(.medium); vm.exitGame() } label: {
-                    ZStack {
-                        Circle()
-                            .fill(Color.black.opacity(0.25))
-                            .frame(width: 34, height: 34)
-                        Image(systemName: "xmark")
-                            .font(.system(size: 13, weight: .black))
-                            .foregroundStyle(Color.white)
-                    }
-                }
-            }
-        }
         .onAppear {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) { appeared = true }
         }
@@ -230,15 +213,11 @@ struct WordPickView: View {
     // Toggle: false = app picks from categories, true = custom word
     @State private var useCustomWord: Bool = false
     @State private var selectedPoints: Int = 0  // 0 = nothing selected yet
+    @State private var showWordConfirm: Bool = false
 
     var body: some View {
         ZStack {
             opponentTeam.color.ignoresSafeArea()
-            Text(useCustomWord ? "✏️" : "?")
-                .font(.system(size: 220, weight: .black))
-                .foregroundStyle(Color.white.opacity(0.05))
-                .offset(y: -60)
-
             VStack(spacing: 0) {
                 // ── Header ──
                 VStack(spacing: 8) {
@@ -298,6 +277,19 @@ struct WordPickView: View {
                 }
             }
         }
+        .alert(
+            t("Are you sure?", "مطمئنی؟"),
+            isPresented: $showWordConfirm
+        ) {
+            Button(t("Yes, Start!", "آره، شروع کن!")) {
+                appSettings.hapticNotification(.success)
+                vm.confirmWordAndStart(appSettings: appSettings)
+            }
+            Button(t("No, Edit it", "نه، ویرایش کن"), role: .cancel) {}
+        } message: {
+            let word = vm.customWordInput.trimmingCharacters(in: .whitespacesAndNewlines)
+            Text(t("The word is: \"\(word)\"", "کلمه: «\(word)»"))
+        }
         .onAppear {
             if vm.currentWord == nil { vm.refreshWord() }
         }
@@ -334,8 +326,10 @@ struct WordPickView: View {
                             Image(systemName: "arrow.up").font(.system(size: 14, weight: .black))
                                 .foregroundStyle(opponentTeam.color.opacity(0.6))
                         }
-                        Text(selectedPoints == 0
-                             ? t("Pick a difficulty above", "یه سختی انتخاب کن")
+                        Text(!canStart
+                             ? (vm.turnCategories.isEmpty
+                                ? t("↑ Pick a category & difficulty", "↑ دسته و سختی انتخاب کن")
+                                : t("↑ Pick a difficulty above", "↑ یه سختی انتخاب کن"))
                              : t("START TIMER →", "شروع تایمر →"))
                             .font(.system(size: 19, weight: .black, design: .rounded)).tracking(1)
                     }
@@ -412,8 +406,8 @@ struct WordPickView: View {
     func confirmCustomWord() {
         let text = vm.customWordInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        appSettings.hapticNotification(.success)
-        vm.confirmWordAndStart(appSettings: appSettings)
+        appSettings.haptic(.medium)
+        showWordConfirm = true  // show confirmation alert with the typed word
     }
 
     // MARK: - Category grid
@@ -854,6 +848,11 @@ struct TurnResultView: View {
                         resultRow(label: t("Base score","امتیاز پایه"), value: lang == .persian ? "\(rec.basePoints) امتیاز" : "\(rec.basePoints) pts", color: AppColors.forPoints(rec.basePoints))
                         if rec.faultCount > 0 {
                             resultRow(label: t("Faults","خطاها"), value: lang == .persian ? "−\(rec.faultCount) امتیاز" : "−\(rec.faultCount) pts", color: AppColors.orange)
+                        }
+                        if rec.wordChangePenalty > 0 {
+                            resultRow(label: t("Word swap (−1 pt)","عوض کردن کلمه (−۱ امتیاز)"),
+                                      value: lang == .persian ? "−1 امتیاز" : "−1 pt",
+                                      color: AppColors.orange)
                         }
                         if rec.bonusPoints > 0 {
                             resultRow(

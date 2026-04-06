@@ -6,7 +6,6 @@
 //
 
 
-
 import Foundation
 import SwiftUI
 import Observation
@@ -58,12 +57,13 @@ struct TurnRecord: Identifiable {
     let isCustom: Bool
     let basePoints: Int
     let faultCount: Int
-    let bonusPoints: Int   // 0, 1, or 2 based on how fast they guessed
+    let bonusPoints: Int        // 0, 1, or 2 based on how fast they guessed
+    let wordChangePenalty: Int  // 1 if actor swapped the word before timer, else 0
     let guessed: Bool
 
     var finalPoints: Int {
         guard guessed else { return 0 }
-        return max(1, basePoints - faultCount) + bonusPoints
+        return max(1, basePoints - faultCount - wordChangePenalty) + bonusPoints
     }
 
     var actorName: String? = nil
@@ -98,37 +98,67 @@ enum GamePhase: Equatable {
 }
 
 // MARK: - Word Pool Manager
+// Language-aware pool: Persian mode draws Persian-audience words, English draws English-audience.
+// Full-cycle guarantee: every word is shown once before any word repeats.
+// Pool key = (points, language) so Persian and English cycles are independent.
+
+struct PoolKey: Hashable {
+    let points: Int
+    let language: AppLanguage
+}
+
 final class WordPoolManager {
-    private var usedIDs: [Int: Set<UUID>] = [3: [], 5: [], 7: []]
-    private var pools: [Int: [WordEntry]] = [:]
-    private var poolCategories: [Int: Set<WordCategory>] = [:]
+    // Words waiting to be drawn in the current cycle
+    private var pools: [PoolKey: [WordEntry]] = [:]
+    // Words already drawn this cycle — used to guarantee no repeat until full cycle done
+    private var usedIDs: [PoolKey: Set<UUID>] = [:]
+    // Which category set each pool was built for
+    private var poolCategories: [PoolKey: Set<WordCategory>] = [:]
 
     func reset() {
-        usedIDs = [3: [], 5: [], 7: []]; pools = [:]; poolCategories = [:]
+        pools = [:]; usedIDs = [:]; poolCategories = [:]
     }
 
-    func draw(points: Int, categories: Set<WordCategory>) -> WordEntry? {
-        let needsRebuild = pools[points] == nil
-            || pools[points]!.isEmpty
-            || poolCategories[points] != categories
-        if needsRebuild { rebuild(points: points, categories: categories) }
-        guard var pool = pools[points], !pool.isEmpty else { return nil }
+    func draw(points: Int, categories: Set<WordCategory>, language: AppLanguage) -> WordEntry? {
+        let key = PoolKey(points: points, language: language)
+        let needsRebuild = pools[key] == nil
+            || pools[key]!.isEmpty
+            || poolCategories[key] != categories
+        if needsRebuild { rebuild(key: key, categories: categories, language: language) }
+        guard var pool = pools[key], !pool.isEmpty else { return nil }
         let word = pool.removeFirst()
-        pools[points] = pool
-        usedIDs[points, default: []].insert(word.id)
+        pools[key] = pool
+        usedIDs[key, default: []].insert(word.id)
         return word
     }
 
-    private func rebuild(points: Int, categories: Set<WordCategory>) {
-        poolCategories[points] = categories
-        var candidates = wordDatabase.filter {
-            $0.points == points && categories.contains($0.category) && !$0.isCustom
+    private func rebuild(key: PoolKey, categories: Set<WordCategory>, language: AppLanguage) {
+        poolCategories[key] = categories
+
+        // Filter by points, category, language audience, and non-custom
+        let all = wordDatabase.filter { w in
+            guard w.points == key.points,
+                  categories.contains(w.category),
+                  !w.isCustom else { return false }
+            switch w.audience {
+            case .both:    return true
+            case .persian: return language == .persian
+            case .english: return language == .english
+            }
         }
-        let used = usedIDs[points, default: []]
-        let fresh = candidates.filter { !used.contains($0.id) }
-        if fresh.isEmpty { usedIDs[points] = []; candidates = candidates.shuffled() }
-        else { candidates = fresh.shuffled() }
-        pools[points] = candidates
+
+        // Full-cycle guarantee: only use words NOT yet seen this cycle.
+        // If all words have been seen, reset the used set and start a new cycle.
+        let used = usedIDs[key, default: []]
+        let fresh = all.filter { !used.contains($0.id) }
+
+        if fresh.isEmpty {
+            // Full cycle complete — reset and start over (but still shuffle for variety)
+            usedIDs[key] = []
+            pools[key] = all.shuffled()
+        } else {
+            pools[key] = fresh.shuffled()
+        }
     }
 }
 
@@ -144,6 +174,7 @@ final class GameViewModel {
     var wordRevealed: Bool = false
     var currentWordPoints: Int = 5
     var faultCount: Int = 0
+    var wordChangedPenalty: Int = 0  // 1 if word was swapped before timer
 
     // Timer
     var timeRemaining: Int = 60
@@ -215,6 +246,7 @@ final class GameViewModel {
         selectedPoints = 0       // 0 = no difficulty selected yet
         turnCategories = []      // none selected by default; user picks fresh each turn
         faultCount = 0
+        wordChangedPenalty = 0
         wordRevealed = false
         timerStarted = false
         phase = .wordPick
@@ -227,7 +259,7 @@ final class GameViewModel {
     func refreshWord() {
         guard customWordInput.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         guard selectedPoints > 0, !turnCategories.isEmpty else { return }
-        if let w = wordPool.draw(points: selectedPoints, categories: turnCategories) {
+        if let w = wordPool.draw(points: selectedPoints, categories: turnCategories, language: language) {
             currentWord = w
             currentWordPoints = w.points
         }
@@ -247,6 +279,7 @@ final class GameViewModel {
         customWordInput = ""
         wordRevealed = false
         faultCount = 0
+        wordChangedPenalty = 0
         timerStarted = false
         isPaused = false
         timeRemaining = settings.timePerTurn
@@ -268,12 +301,10 @@ final class GameViewModel {
     /// Actor can swap the word before starting the timer — costs 1 point
     func changeWordBeforeStart() {
         guard !timerStarted else { return }
-        // Deduct 1 pt (min 1)
         currentWordPoints = max(1, currentWordPoints - 1)
-        // Draw a new word from the same pool
-        if let w = wordPool.draw(points: selectedPoints, categories: turnCategories) {
+        wordChangedPenalty = 1  // record that word was swapped
+        if let w = wordPool.draw(points: selectedPoints, categories: turnCategories, language: language) {
             currentWord = w
-            // Keep the deducted points value — don't reset to word.points
         }
         wordRevealed = false
     }
@@ -325,6 +356,7 @@ final class GameViewModel {
             basePoints: word.points,
             faultCount: faultCount,
             bonusPoints: bonus,
+            wordChangePenalty: wordChangedPenalty,
             guessed: guessed,
             actorName: currentActorName
         )

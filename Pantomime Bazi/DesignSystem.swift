@@ -6,6 +6,7 @@
 //
 
 
+
 import SwiftUI
 import AudioToolbox
 import AVFoundation
@@ -53,6 +54,8 @@ struct AppColors {
         case .nature:      return Color(hex: "#14B8A6")
         case .emotions:    return Color(hex: "#F97316")
         case .famous:      return Color(hex: "#EAB308")
+        case .music:       return Color(hex: "#8B5CF6")
+        case .places:      return Color(hex: "#06B6D4")
         }
     }
 
