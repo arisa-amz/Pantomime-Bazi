@@ -6,6 +6,8 @@
 //
 
 
+
+
 import Foundation
 import SwiftUI
 import Observation
@@ -194,6 +196,10 @@ final class GameViewModel {
     var turnRecords: [TurnRecord] = []
     var lastTurnRecord: TurnRecord? = nil
 
+    // Tracks category+difficulty combos already played by each team this game.
+    // Key: team UUID, Value: Set of "category_points" strings e.g. "Animals_5"
+    var playedCombos: [UUID: Set<String>] = [:]
+
     private let wordPool = WordPoolManager()
     private var timerTask: Task<Void, Never>?
 
@@ -231,6 +237,7 @@ final class GameViewModel {
         currentTeamIndex = 0
         actorIndexPerTeam = [:]
         turnRecords = []
+        playedCombos = [:]
         wordPool.reset()
         for i in settings.teams.indices { settings.teams[i].totalScore = 0 }
         phase = .teamReady
@@ -362,6 +369,12 @@ final class GameViewModel {
         )
         turnRecords.append(rec)
         lastTurnRecord = rec
+        // Record the category+difficulty combo so it can't be replayed at same difficulty
+        if !word.isCustom {
+            let teamID = settings.teams[currentTeamIndex].id
+            let combo = "\(word.category.rawValue)_\(word.points)"
+            playedCombos[teamID, default: []].insert(combo)
+        }
     }
 
     // MARK: - Advance
@@ -411,6 +424,24 @@ final class GameViewModel {
     }
 
     func stopTimer() { timerTask?.cancel(); timerTask = nil }
+
+    // MARK: - Category/Difficulty restrictions
+
+    /// Points already played by the current acting team in the given category
+    func usedPoints(for category: WordCategory) -> Set<Int> {
+        let teamID = settings.teams[currentTeamIndex].id
+        let played = playedCombos[teamID, default: []]
+        var used = Set<Int>()
+        for pts in [3, 5, 7] {
+            if played.contains("\(category.rawValue)_\(pts)") { used.insert(pts) }
+        }
+        return used
+    }
+
+    /// True if the acting team has played this category at ALL three difficulties
+    func isCategoryFullyBlocked(_ category: WordCategory) -> Bool {
+        usedPoints(for: category).count == 3
+    }
 
     // MARK: - Exit
 

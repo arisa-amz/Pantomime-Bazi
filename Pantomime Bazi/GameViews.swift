@@ -7,6 +7,7 @@
 
 
 
+
 import SwiftUI
 
 // MARK: - Team Ready (actor spotlight + scoreboard only)
@@ -326,12 +327,16 @@ struct WordPickView: View {
                             Image(systemName: "arrow.up").font(.system(size: 14, weight: .black))
                                 .foregroundStyle(opponentTeam.color.opacity(0.6))
                         }
-                        Text(!canStart
-                             ? (vm.turnCategories.isEmpty
-                                ? t("↑ Pick a category & difficulty", "↑ دسته و سختی انتخاب کن")
-                                : t("↑ Pick a difficulty above", "↑ یه سختی انتخاب کن"))
-                             : t("START TIMER →", "شروع تایمر →"))
-                            .font(.system(size: 19, weight: .black, design: .rounded)).tracking(1)
+                        Text({
+                            if canStart { return t("START TIMER →", "شروع تایمر →") }
+                            let noCat = vm.turnCategories.isEmpty
+                            let noPts = selectedPoints == 0
+                            if noCat && noPts { return t("↑ Pick categories & difficulty", "↑ دسته‌بندی و سختی انتخاب کن") }
+                            if noCat { return t("↑ Pick at least one category", "↑ حداقل یه دسته انتخاب کن") }
+                            return t("↑ Pick a difficulty above", "↑ یه سختی انتخاب کن")
+                        }())
+                            .font(.system(size: selectedPoints == 0 && vm.turnCategories.isEmpty ? 16 : 19,
+                                          weight: .black, design: .rounded)).tracking(0.5)
                     }
                     .foregroundStyle(canStart ? opponentTeam.color : opponentTeam.color.opacity(0.45))
                     .frame(maxWidth: .infinity).padding(.vertical, 20)
@@ -425,7 +430,8 @@ struct WordPickView: View {
                     if allSelected {
                         vm.turnCategories = []
                     } else {
-                        vm.turnCategories = Set(WordCategory.allCases)
+                        // Only select categories that aren't fully blocked
+                        vm.turnCategories = Set(WordCategory.allCases.filter { !vm.isCategoryFullyBlocked($0) })
                     }
                 } label: {
                     HStack(spacing: 4) {
@@ -446,25 +452,60 @@ struct WordPickView: View {
                       spacing: 8) {
                 ForEach(WordCategory.allCases) { cat in
                     let isOn = vm.turnCategories.contains(cat)
+                    let fullyBlocked = vm.isCategoryFullyBlocked(cat)
+                    let usedPts = vm.usedPoints(for: cat)
+                    let partiallyUsed = !usedPts.isEmpty && !fullyBlocked
+
                     Button {
+                        guard !fullyBlocked else { return }
                         Haptics.impact(.light)
-                        if isOn {
-                            vm.turnCategories.remove(cat)
-                        } else {
-                            vm.turnCategories.insert(cat)
-                        }
+                        if isOn { vm.turnCategories.remove(cat) }
+                        else { vm.turnCategories.insert(cat) }
                     } label: {
-                        VStack(spacing: 3) {
-                            Text(cat.emoji).font(.system(size: 20))
-                            Text(lang == .persian ? cat.persianName : cat.rawValue)
-                                .font(AppFonts.rounded(9, weight: .bold))
-                                .multilineTextAlignment(.center).lineLimit(2)
+                        ZStack {
+                            VStack(spacing: 3) {
+                                Text(cat.emoji).font(.system(size: 20))
+                                Text(lang == .persian ? cat.persianName : cat.rawValue)
+                                    .font(AppFonts.rounded(9, weight: .bold))
+                                    .multilineTextAlignment(.center).lineLimit(2)
+                                // Show which difficulties are already used
+                                if partiallyUsed {
+                                    HStack(spacing: 2) {
+                                        ForEach([3, 5, 7], id: \.self) { pts in
+                                            Circle()
+                                                .fill(usedPts.contains(pts)
+                                                      ? AppColors.forPoints(pts)
+                                                      : Color.white.opacity(0.2))
+                                                .frame(width: 5, height: 5)
+                                        }
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity).padding(.vertical, 8)
+                            .foregroundStyle(
+                                fullyBlocked ? Color.white.opacity(0.25) :
+                                (isOn ? AppColors.forCategory(cat) : Color.white.opacity(0.55))
+                            )
+                            .background(
+                                fullyBlocked ? Color.white.opacity(0.06) :
+                                (isOn ? Color.white : Color.white.opacity(0.12))
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                            // Lock icon overlay for fully blocked categories
+                            if fullyBlocked {
+                                VStack {
+                                    Image(systemName: "lock.fill")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundStyle(Color.white.opacity(0.5))
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .background(Color.black.opacity(0.15))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
                         }
-                        .frame(maxWidth: .infinity).padding(.vertical, 8)
-                        .foregroundStyle(isOn ? AppColors.forCategory(cat) : Color.white.opacity(0.55))
-                        .background(isOn ? Color.white : Color.white.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
+                    .disabled(fullyBlocked)
                 }
             }
         }
@@ -473,31 +514,77 @@ struct WordPickView: View {
     // MARK: - Difficulty selector (3 toggle-style buttons, not confirm-triggering)
 
     var difficultyButtons: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(t("Difficulty", "سختی"))
-                .font(AppFonts.rounded(13, weight: .heavy))
-                .foregroundStyle(.white.opacity(0.8))
+        // Compute which difficulties are blocked across ALL selected categories.
+        // A difficulty is blocked for a category if it's been played.
+        // We block a difficulty button if it is used in ALL currently selected categories.
+        // (If even one selected category still allows that difficulty, the button stays active.)
+        let blockedPts: Set<Int> = {
+            guard !vm.turnCategories.isEmpty else { return [] }
+            var blocked = Set<Int>()
+            for pts in [3, 5, 7] {
+                let blockedInAll = vm.turnCategories.allSatisfy { cat in
+                    vm.usedPoints(for: cat).contains(pts)
+                }
+                if blockedInAll { blocked.insert(pts) }
+            }
+            return blocked
+        }()
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(t("Difficulty", "سختی"))
+                    .font(AppFonts.rounded(13, weight: .heavy))
+                    .foregroundStyle(.white.opacity(0.8))
+                if !blockedPts.isEmpty {
+                    Text(t("(some used)", "(بعضی استفاده شده)"))
+                        .font(AppFonts.rounded(10))
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+            }
 
             HStack(spacing: 10) {
                 ForEach([3, 5, 7], id: \.self) { pts in
+                    let isBlocked = blockedPts.contains(pts)
+                    let isSelected = selectedPoints == pts
                     Button {
+                        guard !isBlocked else { return }
                         selectedPoints = pts
                         appSettings.haptic(.light)
                     } label: {
-                        VStack(spacing: 3) {
-                            Text(pts == 3 ? "😊" : pts == 5 ? "😤" : "🔥")
-                                .font(.system(size: 20))
-                            Text(lang == .persian ? "\(pts) امتیاز" : "\(pts) pts").font(AppFonts.rounded(12, weight: .black))
-                            Text(pts == 3 ? t("Easy","آسون") : pts == 5 ? t("Medium","متوسط") : t("Hard","سخت"))
-                                .font(AppFonts.rounded(10))
+                        ZStack {
+                            VStack(spacing: 3) {
+                                Text(pts == 3 ? "😊" : pts == 5 ? "😤" : "🔥")
+                                    .font(.system(size: 20))
+                                    .opacity(isBlocked ? 0.3 : 1)
+                                Text(lang == .persian ? "\(pts) امتیاز" : "\(pts) pts")
+                                    .font(AppFonts.rounded(12, weight: .black))
+                                Text(pts == 3 ? t("Easy","آسون") : pts == 5 ? t("Medium","متوسط") : t("Hard","سخت"))
+                                    .font(AppFonts.rounded(10))
+                            }
+                            .foregroundStyle(
+                                isBlocked ? Color.white.opacity(0.25) :
+                                (isSelected ? AppColors.forPoints(pts) : Color.white.opacity(0.65))
+                            )
+                            .frame(maxWidth: .infinity).padding(.vertical, 10)
+                            .background(
+                                isBlocked ? Color.white.opacity(0.06) :
+                                (isSelected ? Color.white : Color.white.opacity(0.15))
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .shadow(color: (!isBlocked && isSelected) ? AppColors.forPoints(pts).opacity(0.3) : .clear,
+                                    radius: 6, y: 3)
+
+                            if isBlocked {
+                                Image(systemName: "lock.fill")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(.white.opacity(0.4))
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .background(Color.black.opacity(0.12))
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                            }
                         }
-                        .foregroundStyle(selectedPoints == pts ? AppColors.forPoints(pts) : Color.white.opacity(0.65))
-                        .frame(maxWidth: .infinity).padding(.vertical, 10)
-                        .background(selectedPoints == pts ? Color.white : Color.white.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                        .shadow(color: selectedPoints == pts ? AppColors.forPoints(pts).opacity(0.3) : .clear,
-                                radius: 6, y: 3)
                     }
+                    .disabled(isBlocked)
                 }
             }
         }
