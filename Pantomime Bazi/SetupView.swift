@@ -6,8 +6,6 @@
 //
 //
 
-
-
 import SwiftUI
 
 // MARK: - Setup View
@@ -39,11 +37,12 @@ struct SetupView: View {
             }
             .navigationDestination(for: AppRoute.self) { route in
                 switch route {
-                case .teamReady:  TeamReadyView(vm: vm, appSettings: appSettings)
-                case .wordPick:   WordPickView(vm: vm, appSettings: appSettings)
-                case .playing:    PlayingView(vm: vm, appSettings: appSettings)
-                case .turnResult: TurnResultView(vm: vm, appSettings: appSettings)
-                case .gameOver:   GameOverView(vm: vm, appSettings: appSettings)
+                case .teamReady: TeamReadyView(vm: vm, appSettings: appSettings)
+                case .wordPick: WordPickView(vm: vm, appSettings: appSettings)
+                case .playing: PlayingView(vm: vm, appSettings: appSettings)
+                case .turnResult:
+                    TurnResultView(vm: vm, appSettings: appSettings)
+                case .gameOver: GameOverView(vm: vm, appSettings: appSettings)
                 }
             }
             .sheet(isPresented: $showSettings) {
@@ -343,22 +342,34 @@ struct TeamCard: View {
                 // Top row: tappable icon | always-editable name TextField | delete
                 HStack(spacing: 10) {
                     // Icon — tap to pick a different one
-                    Button { showIconPicker = true } label: {
+                    Button {
+                        showIconPicker = true
+                    } label: {
                         // ZStack with default (centre) alignment so emoji fills the circle
                         ZStack {
-                            Circle().fill(team.color).frame(width: 46, height: 46)
+                            Circle().fill(team.color).frame(
+                                width: 46,
+                                height: 46
+                            )
                             Text(team.icon)
                                 .font(.system(size: 26))
                                 .frame(width: 46, height: 46)  // constrain to circle size → centres it
                             // Small badge bottom-right to signal tappable
-                            Circle().fill(Color.white).frame(width: 16, height: 16)
-                                .overlay(
-                                    Image(systemName: "chevron.up.chevron.down")
-                                        .font(.system(size: 7, weight: .heavy))
-                                        .foregroundStyle(team.color)
-                                )
-                                .frame(width: 46, height: 46, alignment: .bottomTrailing)
-                                .offset(x: 2, y: 2)
+                            Circle().fill(Color.white).frame(
+                                width: 16,
+                                height: 16
+                            )
+                            .overlay(
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.system(size: 7, weight: .heavy))
+                                    .foregroundStyle(team.color)
+                            )
+                            .frame(
+                                width: 46,
+                                height: 46,
+                                alignment: .bottomTrailing
+                            )
+                            .offset(x: 2, y: 2)
                         }
                     }
 
@@ -380,7 +391,10 @@ struct TeamCard: View {
                     if canDelete {
                         Button(action: onDelete) {
                             ZStack {
-                                Circle().fill(AppColors.red).frame(width: 34, height: 34)
+                                Circle().fill(AppColors.red).frame(
+                                    width: 34,
+                                    height: 34
+                                )
                                 Image(systemName: "xmark")
                                     .font(.system(size: 13, weight: .bold))
                                     .foregroundStyle(Color.white)
@@ -427,9 +441,10 @@ struct TeamCard: View {
                     .font(AppFonts.rounded(14, weight: .medium))
                     .foregroundStyle(AppColors.text)
                     Spacer()
-                    Toggle("", isOn: $team.useNamedMembers).labelsHidden().tint(
-                        team.color
-                    )
+                    Toggle("", isOn: $team.useNamedMembers).labelsHidden()
+                        .preferredColorScheme(.light)                        .tint(
+                            team.color
+                        )
                 }
 
                 if team.useNamedMembers {
@@ -555,54 +570,100 @@ struct MembersEditorSheet: View {
                                 VStack(spacing: 12) {
                                     Text("👥").font(.system(size: 48))
                                     Text(t("No members yet", "هنوز عضوی نیست"))
-                                        .font(AppFonts.rounded(16, weight: .bold))
+                                        .font(
+                                            AppFonts.rounded(16, weight: .bold)
+                                        )
                                         .foregroundStyle(AppColors.text)
-                                    Text(t("Add player names below so the game knows who's turn it is to act.",
-                                           "اسامی بازیکنان رو اضافه کن تا بازی بدونه نوبت کیه."))
-                                        .font(AppFonts.rounded(13))
-                                        .foregroundStyle(AppColors.textSecondary)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 32)
+                                    Text(
+                                        t(
+                                            "Add player names below so the game knows who's turn it is to act.",
+                                            "اسامی بازیکنان رو اضافه کن تا بازی بدونه نوبت کیه."
+                                        )
+                                    )
+                                    .font(AppFonts.rounded(13))
+                                    .foregroundStyle(AppColors.textSecondary)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 32)
                                 }
                                 .padding(.top, 48)
                             } else {
-                                ForEach(Array(team.members.enumerated()), id: \.element.id) { i, member in
+                                ForEach(
+                                    Array(team.members.enumerated()),
+                                    id: \.element.id
+                                ) { i, member in
                                     // Member card
                                     HStack(spacing: 14) {
                                         // Number circle
                                         ZStack {
-                                            Circle().fill(team.color).frame(width: 38, height: 38)
+                                            Circle().fill(team.color).frame(
+                                                width: 38,
+                                                height: 38
+                                            )
                                             Text("\(i + 1)")
-                                                .font(.system(size: 16, weight: .black, design: .rounded))
+                                                .font(
+                                                    .system(
+                                                        size: 16,
+                                                        weight: .black,
+                                                        design: .rounded
+                                                    )
+                                                )
                                                 .foregroundStyle(.white)
                                         }
                                         Text(member.name)
-                                            .font(AppFonts.rounded(16, weight: .bold))
+                                            .font(
+                                                AppFonts.rounded(
+                                                    16,
+                                                    weight: .bold
+                                                )
+                                            )
                                             .foregroundStyle(AppColors.text)
                                         Spacer()
                                         // Delete button
                                         Button {
-                                            _ = withAnimation(.spring(response: 0.3)) {
+                                            _ = withAnimation(
+                                                .spring(response: 0.3)
+                                            ) {
                                                 team.members.remove(at: i)
                                             }
                                             Haptics.impact(.light)
                                         } label: {
                                             ZStack {
-                                                Circle().fill(AppColors.red.opacity(0.1)).frame(width: 30, height: 30)
+                                                Circle().fill(
+                                                    AppColors.red.opacity(0.1)
+                                                ).frame(width: 30, height: 30)
                                                 Image(systemName: "xmark")
-                                                    .font(.system(size: 11, weight: .bold))
-                                                    .foregroundStyle(AppColors.red)
+                                                    .font(
+                                                        .system(
+                                                            size: 11,
+                                                            weight: .bold
+                                                        )
+                                                    )
+                                                    .foregroundStyle(
+                                                        AppColors.red
+                                                    )
                                             }
                                         }
                                     }
-                                    .padding(.horizontal, 16).padding(.vertical, 12)
+                                    .padding(.horizontal, 16).padding(
+                                        .vertical,
+                                        12
+                                    )
                                     .background(Color.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                                    .shadow(color: team.color.opacity(0.08), radius: 6, y: 3)
+                                    .clipShape(
+                                        RoundedRectangle(cornerRadius: 16)
+                                    )
+                                    .shadow(
+                                        color: team.color.opacity(0.08),
+                                        radius: 6,
+                                        y: 3
+                                    )
                                 }
                             }
                         }
-                        .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 120)
+                        .padding(.horizontal, 20).padding(.top, 16).padding(
+                            .bottom,
+                            120
+                        )
                     }
 
                     // Add member input — pinned at bottom
@@ -611,37 +672,59 @@ struct MembersEditorSheet: View {
                         HStack(spacing: 12) {
                             // Avatar placeholder
                             ZStack {
-                                Circle().fill(team.color.opacity(0.15)).frame(width: 42, height: 42)
+                                Circle().fill(team.color.opacity(0.15)).frame(
+                                    width: 42,
+                                    height: 42
+                                )
                                 Image(systemName: "person.badge.plus")
                                     .font(.system(size: 18, weight: .bold))
                                     .foregroundStyle(team.color)
                             }
-                            TextField(t("Player name…", "نام بازیکن…"), text: $newName)
-                                .font(AppFonts.rounded(16, weight: .medium))
-                                .foregroundStyle(AppColors.text)
-                                .submitLabel(.done)
-                                .onSubmit { addMember() }
-                                .padding(.horizontal, 14).padding(.vertical, 12)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .fill(team.color.opacity(0.06))
-                                )
+                            TextField(
+                                t("Player name…", "نام بازیکن…"),
+                                text: $newName
+                            )
+                            .font(AppFonts.rounded(16, weight: .medium))
+                            .foregroundStyle(AppColors.text)
+                            .submitLabel(.done)
+                            .onSubmit { addMember() }
+                            .padding(.horizontal, 14).padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(team.color.opacity(0.06))
+                            )
                             // Add button — active only when text filled
-                            Button { addMember() } label: {
+                            Button {
+                                addMember()
+                            } label: {
                                 ZStack {
                                     Circle()
-                                        .fill(newName.trimmingCharacters(in: .whitespaces).isEmpty
-                                              ? AppColors.textSecondary.opacity(0.2) : team.color)
+                                        .fill(
+                                            newName.trimmingCharacters(
+                                                in: .whitespaces
+                                            ).isEmpty
+                                                ? AppColors.textSecondary
+                                                    .opacity(0.2) : team.color
+                                        )
                                         .frame(width: 42, height: 42)
                                     Image(systemName: "plus")
                                         .font(.system(size: 16, weight: .black))
                                         .foregroundStyle(.white)
                                 }
                             }
-                            .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
+                            .disabled(
+                                newName.trimmingCharacters(in: .whitespaces)
+                                    .isEmpty
+                            )
                         }
                         .padding(.horizontal, 20).padding(.vertical, 14)
-                        .background(Color.white.shadow(color: .black.opacity(0.06), radius: 8, y: -4))
+                        .background(
+                            Color.white.shadow(
+                                color: .black.opacity(0.06),
+                                radius: 8,
+                                y: -4
+                            )
+                        )
                     }
                 }
             }
@@ -650,7 +733,8 @@ struct MembersEditorSheet: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(t("Done", "تأیید")) { dismiss() }
-                        .font(AppFonts.rounded(16, weight: .bold)).foregroundStyle(AppColors.blue)
+                        .font(AppFonts.rounded(16, weight: .bold))
+                        .foregroundStyle(AppColors.blue)
                 }
             }
         }
@@ -824,22 +908,33 @@ struct SettingsSheet: View {
                         }
 
                         // About Us card
-                        Button { showAbout = true } label: {
+                        Button {
+                            showAbout = true
+                        } label: {
                             HStack(spacing: 14) {
                                 ZStack {
-                                    RoundedRectangle(cornerRadius: 10).fill(AppColors.purple)
-                                        .frame(width: 40, height: 40)
+                                    RoundedRectangle(cornerRadius: 10).fill(
+                                        AppColors.purple
+                                    )
+                                    .frame(width: 40, height: 40)
                                     Image(systemName: "theatermasks.fill")
                                         .font(.system(size: 18, weight: .bold))
                                         .foregroundStyle(.white)
                                 }
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(t("About Us", "درباره ما"))
-                                        .font(AppFonts.rounded(15, weight: .bold))
+                                        .font(
+                                            AppFonts.rounded(15, weight: .bold)
+                                        )
                                         .foregroundStyle(AppColors.text)
-                                    Text(t("Team, story and credits", "تیم، داستان و سازندگان"))
-                                        .font(AppFonts.rounded(12))
-                                        .foregroundStyle(AppColors.textSecondary)
+                                    Text(
+                                        t(
+                                            "Team, story and credits",
+                                            "تیم، داستان و سازندگان"
+                                        )
+                                    )
+                                    .font(AppFonts.rounded(12))
+                                    .foregroundStyle(AppColors.textSecondary)
                                 }
                                 Spacer()
                                 Image(systemName: "chevron.right")
@@ -848,7 +943,11 @@ struct SettingsSheet: View {
                             }
                             .padding(16).background(Color.white)
                             .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
+                            .shadow(
+                                color: .black.opacity(0.05),
+                                radius: 8,
+                                y: 4
+                            )
                         }
                         .padding(.horizontal, 20).padding(.top, 4)
                     }
@@ -1012,7 +1111,9 @@ struct AboutView: View {
     let language: AppLanguage
     @Environment(\.dismiss) var dismiss
 
-    func t(_ en: String, _ fa: String) -> String { language == .persian ? fa : en }
+    func t(_ en: String, _ fa: String) -> String {
+        language == .persian ? fa : en
+    }
 
     var body: some View {
         NavigationStack {
@@ -1025,7 +1126,13 @@ struct AboutView: View {
                         VStack(spacing: 10) {
                             Text("🎭").font(.system(size: 64))
                             Text("پانتومیم")
-                                .font(.system(size: 32, weight: .black, design: .rounded))
+                                .font(
+                                    .system(
+                                        size: 32,
+                                        weight: .black,
+                                        design: .rounded
+                                    )
+                                )
                                 .foregroundStyle(AppColors.text)
                             Text(t("the CHALLENGE", "چالش بزرگ"))
                                 .font(AppFonts.rounded(15, weight: .heavy))
@@ -1033,12 +1140,18 @@ struct AboutView: View {
                                 .padding(.horizontal, 14).padding(.vertical, 5)
                                 .background(
                                     RoundedRectangle(cornerRadius: 8)
-                                        .fill(AppColors.text).rotationEffect(.degrees(-1))
+                                        .fill(AppColors.text).rotationEffect(
+                                            .degrees(-1)
+                                        )
                                 )
-                            Text(t("Version 1.0  •  Free forever",
-                                   "نسخه ۱.۰  •  رایگان برای همیشه"))
-                                .font(AppFonts.rounded(13))
-                                .foregroundStyle(AppColors.textSecondary)
+                            Text(
+                                t(
+                                    "Version 1.0  •  Free forever",
+                                    "نسخه ۱.۰  •  رایگان برای همیشه"
+                                )
+                            )
+                            .font(AppFonts.rounded(13))
+                            .foregroundStyle(AppColors.textSecondary)
                         }
                         .padding(.top, 16)
 
@@ -1048,10 +1161,12 @@ struct AboutView: View {
                             color: AppColors.blue,
                             title: t("About the App", "درباره اپ")
                         ) {
-                            Text(t(
-                                "Pantomime is a free Persian & English party game built for friends and families. No accounts, no ads, no paywalls — just fun.",
-                                "پانتومیم یه بازی پارتی رایگان به فارسی و انگلیسی برای دوستان و خانواده‌هاست. بدون اکانت، بدون تبلیغ، بدون پرداخت — فقط سرگرمی."
-                            ))
+                            Text(
+                                t(
+                                    "Pantomime is a free Persian & English party game built for friends and families. No accounts, no ads, no paywalls — just fun.",
+                                    "پانتومیم یه بازی پارتی رایگان به فارسی و انگلیسی برای دوستان و خانواده‌هاست. بدون اکانت، بدون تبلیغ، بدون پرداخت — فقط سرگرمی."
+                                )
+                            )
                             .font(AppFonts.rounded(14))
                             .foregroundStyle(AppColors.text)
                             .fixedSize(horizontal: false, vertical: true)
@@ -1065,17 +1180,25 @@ struct AboutView: View {
                         ) {
                             VStack(spacing: 14) {
                                 teamMember(
-                                    name: t("Erfan Yarahmadi", "عرفان یاراحمدی"),
-                                    role: t("Design & Development", "طراحی و توسعه"),
+                                    name: t(
+                                        "Erfan Yarahmadi",
+                                        "عرفان یاراحمدی"
+                                    ),
+                                    role: t(
+                                        "Design & Development",
+                                        "طراحی و توسعه"
+                                    ),
                                     emoji: "👨‍💻"
                                 )
                                 Divider()
                                 // ── Add your team members below ──
                                 // teamMember(name: "...", role: "...", emoji: "...")
-                                Text(t(
-                                    "Built with ❤️ at Apple Developer Academy, Naples",
-                                    "ساخته شده با ❤️ در Apple Developer Academy، ناپل"
-                                ))
+                                Text(
+                                    t(
+                                        "Built with ❤️ at Apple Developer Academy, Naples",
+                                        "ساخته شده با ❤️ در Apple Developer Academy، ناپل"
+                                    )
+                                )
                                 .font(AppFonts.rounded(12))
                                 .foregroundStyle(AppColors.textSecondary)
                                 .multilineTextAlignment(.center)
@@ -1089,10 +1212,12 @@ struct AboutView: View {
                             color: AppColors.red,
                             title: t("Credits & Thanks", "تشکر و قدردانی")
                         ) {
-                            Text(t(
-                                "A love letter to Persian party culture. Dedicated to all Farsi-speaking people around the world. Special thanks to everyone who playtested and gave feedback.",
-                                "یه هدیه عاشقانه به فرهنگ پارتی ایرانی. تقدیم به تمام فارسی‌زبانان دنیا. تشکر ویژه از همه کسانی که بازی رو تست کردند و بازخورد دادند."
-                            ))
+                            Text(
+                                t(
+                                    "A love letter to Persian party culture. Dedicated to all Farsi-speaking people around the world. Special thanks to everyone who playtested and gave feedback.",
+                                    "یه هدیه عاشقانه به فرهنگ پارتی ایرانی. تقدیم به تمام فارسی‌زبانان دنیا. تشکر ویژه از همه کسانی که بازی رو تست کردند و بازخورد دادند."
+                                )
+                            )
                             .font(AppFonts.rounded(14))
                             .foregroundStyle(AppColors.text)
                             .fixedSize(horizontal: false, vertical: true)
@@ -1114,8 +1239,12 @@ struct AboutView: View {
         .layoutDir(language)
     }
 
-    func aboutCard(icon: String, color: Color, title: String,
-                   @ViewBuilder content: () -> some View) -> some View {
+    func aboutCard(
+        icon: String,
+        color: Color,
+        title: String,
+        @ViewBuilder content: () -> some View
+    ) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 Image(systemName: icon)
