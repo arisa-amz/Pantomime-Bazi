@@ -442,7 +442,8 @@ struct TeamCard: View {
                     .foregroundStyle(AppColors.text)
                     Spacer()
                     Toggle("", isOn: $team.useNamedMembers).labelsHidden()
-                        .preferredColorScheme(.light)                        .tint(
+                        .preferredColorScheme(.light)
+                        .tint(
                             team.color
                         )
                 }
@@ -885,28 +886,6 @@ struct SettingsSheet: View {
                             )
                         }
 
-                        settingsCard(
-                            title: t("Gameplay", "بازی"),
-                            icon: "gamecontroller.fill",
-                            color: AppColors.blue
-                        ) {
-                            SettingsToggleRow(
-                                icon: "globe",
-                                iconColor: AppColors.blue,
-                                title: t("Show Translation", "نمایش ترجمه"),
-                                subtitle: t(
-                                    "Show word in other language as hint",
-                                    "نمایش ترجمه کلمه به عنوان راهنما"
-                                ),
-                                isOn: Binding(
-                                    get: { appSettings.showWordTranslation },
-                                    set: {
-                                        appSettings.showWordTranslation = $0
-                                    }
-                                )
-                            )
-                        }
-
                         // About Us card
                         Button {
                             showAbout = true
@@ -1191,8 +1170,30 @@ struct AboutView: View {
                                     emoji: "👨‍💻"
                                 )
                                 Divider()
-                                // ── Add your team members below ──
-                                // teamMember(name: "...", role: "...", emoji: "...")
+                                teamMember(
+                                    name: t(
+                                        "Alireza Aminzadeh",
+                                        "علیرضا امین‌زاده"
+                                    ),
+                                    role: t(
+                                        "Ideation & Design",
+                                        "ایده‌پردازی و طراحی"
+                                    ),
+                                    emoji: "🎨"
+                                )
+                                Divider()
+                                teamMember(
+                                    name: t(
+                                        "Reza AghayariKordkandi",
+                                        "رضا آقایاری کردکندی"
+                                    ),
+                                    role: t(
+                                        "Ideation & Design",
+                                        "ایده‌پردازی و طراحی"
+                                    ),
+                                    emoji: "✏️"
+                                )
+                                Divider()
                                 Text(
                                     t(
                                         "Built with ❤️ at Apple Developer Academy, Naples",

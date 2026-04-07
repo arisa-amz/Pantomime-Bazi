@@ -5,12 +5,9 @@
 //  Created by Erfan Yarahmadi on 01/04/2026.
 //
 
-
-
-
 import Foundation
-import SwiftUI
 import Observation
+import SwiftUI
 
 // MARK: - Team Member
 struct TeamMember: Identifiable, Hashable {
@@ -33,12 +30,16 @@ struct Team: Identifiable {
         Color(hex: "#FF3B5C"), Color(hex: "#3B82F6"), Color(hex: "#10B981"),
         Color(hex: "#F59E0B"), Color(hex: "#8B5CF6"), Color(hex: "#EC4899"),
     ]
-    static let defaultIcons = ["🎭","🦁","🐯","🐻","🦊","🐺","🦄","🐸","🐧","🦋",
-                                "🌟","⚡","🔥","💎","🚀","🎸","🏆","👑","🎯","🎪"]
+    static let defaultIcons = [
+        "🎭", "🦁", "🐯", "🐻", "🦊", "🐺", "🦄", "🐸", "🐧", "🦋",
+        "🌟", "⚡", "🔥", "💎", "🚀", "🎸", "🏆", "👑", "🎯", "🎪",
+    ]
 
     static func defaultName(index: Int, language: AppLanguage) -> String {
         language == .persian
-            ? ["تیم یک","تیم دو","تیم سه","تیم چهار","تیم پنج","تیم شش"][safe: index] ?? "تیم \(index+1)"
+            ? ["تیم یک", "تیم دو", "تیم سه", "تیم چهار", "تیم پنج", "تیم شش"][
+                safe: index
+            ] ?? "تیم \(index+1)"
             : "Team \(index + 1)"
     }
 }
@@ -59,7 +60,7 @@ struct TurnRecord: Identifiable {
     let isCustom: Bool
     let basePoints: Int
     let faultCount: Int
-    let bonusPoints: Int        // 0, 1, or 2 based on how fast they guessed
+    let bonusPoints: Int  // 0, 1, or 2 based on how fast they guessed
     let wordChangePenalty: Int  // 1 if actor swapped the word before timer, else 0
     let guessed: Bool
 
@@ -118,15 +119,22 @@ final class WordPoolManager {
     private var poolCategories: [PoolKey: Set<WordCategory>] = [:]
 
     func reset() {
-        pools = [:]; usedIDs = [:]; poolCategories = [:]
+        pools = [:]
+        usedIDs = [:]
+        poolCategories = [:]
     }
 
-    func draw(points: Int, categories: Set<WordCategory>, language: AppLanguage) -> WordEntry? {
+    func draw(points: Int, categories: Set<WordCategory>, language: AppLanguage)
+        -> WordEntry?
+    {
         let key = PoolKey(points: points, language: language)
-        let needsRebuild = pools[key] == nil
+        let needsRebuild =
+            pools[key] == nil
             || pools[key]!.isEmpty
             || poolCategories[key] != categories
-        if needsRebuild { rebuild(key: key, categories: categories, language: language) }
+        if needsRebuild {
+            rebuild(key: key, categories: categories, language: language)
+        }
         guard var pool = pools[key], !pool.isEmpty else { return nil }
         let word = pool.removeFirst()
         pools[key] = pool
@@ -134,28 +142,26 @@ final class WordPoolManager {
         return word
     }
 
-    private func rebuild(key: PoolKey, categories: Set<WordCategory>, language: AppLanguage) {
+    private func rebuild(
+        key: PoolKey,
+        categories: Set<WordCategory>,
+        language: AppLanguage
+    ) {
         poolCategories[key] = categories
 
-        // Filter by points, category, language audience, and non-custom
-        let all = wordDatabase.filter { w in
-            guard w.points == key.points,
-                  categories.contains(w.category),
-                  !w.isCustom else { return false }
-            switch w.audience {
-            case .both:    return true
-            case .persian: return language == .persian
-            case .english: return language == .english
-            }
+        // Use the language-specific database entirely
+        let db = wordDatabase(for: language)
+        let all = db.filter { w in
+            w.points == key.points && categories.contains(w.category)
+                && !w.isCustom
         }
 
-        // Full-cycle guarantee: only use words NOT yet seen this cycle.
-        // If all words have been seen, reset the used set and start a new cycle.
+        // Full-cycle guarantee: only draw words not yet seen this cycle.
+        // When all words exhausted, reset and start a fresh cycle.
         let used = usedIDs[key, default: []]
         let fresh = all.filter { !used.contains($0.id) }
 
         if fresh.isEmpty {
-            // Full cycle complete — reset and start over (but still shuffle for variety)
             usedIDs[key] = []
             pools[key] = all.shuffled()
         } else {
@@ -177,7 +183,7 @@ final class GameViewModel {
     var currentWordPoints: Int = 5
     var faultCount: Int = 0
     var wordChangedPenalty: Int = 0  // 1 if word was swapped before timer
-    var wordChangedCount: Int = 0    // how many times word was swapped (max 2)
+    var wordChangedCount: Int = 0  // how many times word was swapped (max 2)
 
     // Timer
     var timeRemaining: Int = 60
@@ -227,7 +233,8 @@ final class GameViewModel {
         } else {
             let count = max(1, team.playerCount)
             let playerNum = (idx % count) + 1
-            return language == .persian ? "بازیکن \(playerNum)" : "Player \(playerNum)"
+            return language == .persian
+                ? "بازیکن \(playerNum)" : "Player \(playerNum)"
         }
     }
 
@@ -251,8 +258,8 @@ final class GameViewModel {
         // Reset word state for this turn
         currentWord = nil
         customWordInput = ""
-        selectedPoints = 0       // 0 = no difficulty selected yet
-        turnCategories = []      // none selected by default; user picks fresh each turn
+        selectedPoints = 0  // 0 = no difficulty selected yet
+        turnCategories = []  // none selected by default; user picks fresh each turn
         faultCount = 0
         wordChangedPenalty = 0
         wordChangedCount = 0
@@ -266,9 +273,14 @@ final class GameViewModel {
     // MARK: - Word Selection (by opponent on WordPickView)
 
     func refreshWord() {
-        guard customWordInput.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        guard customWordInput.trimmingCharacters(in: .whitespaces).isEmpty
+        else { return }
         guard selectedPoints > 0, !turnCategories.isEmpty else { return }
-        if let w = wordPool.draw(points: selectedPoints, categories: turnCategories, language: language) {
+        if let w = wordPool.draw(
+            points: selectedPoints,
+            categories: turnCategories,
+            language: language
+        ) {
             currentWord = w
             currentWordPoints = w.points
         }
@@ -276,7 +288,9 @@ final class GameViewModel {
 
     /// Called when opponent confirms their word choice and wants to start
     func confirmWordAndStart(appSettings: AppSettings) {
-        let customText = customWordInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let customText = customWordInput.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
         if !customText.isEmpty {
             currentWord = WordEntry(customText: customText)
             currentWordPoints = 9
@@ -316,7 +330,11 @@ final class GameViewModel {
         currentWordPoints = max(1, currentWordPoints - 1)
         // penalty = total swaps done so far (1 after first swap, 2 after second)
         wordChangedPenalty = wordChangedCount
-        if let w = wordPool.draw(points: selectedPoints, categories: turnCategories, language: language) {
+        if let w = wordPool.draw(
+            points: selectedPoints,
+            categories: turnCategories,
+            language: language
+        ) {
             currentWord = w
         }
         wordRevealed = false
@@ -333,11 +351,16 @@ final class GameViewModel {
     func teamGuessedCorrectly(appSettings: AppSettings) {
         // Time bonus: if >70% time remains (guessed in first 30%) → +2
         //             if >40% time remains (guessed in first 60%) → +1
-        let fractionRemaining = Double(timeRemaining) / Double(settings.timePerTurn)
+        let fractionRemaining =
+            Double(timeRemaining) / Double(settings.timePerTurn)
         let bonus: Int
-        if fractionRemaining > 0.70 { bonus = 2 }
-        else if fractionRemaining > 0.40 { bonus = 1 }
-        else { bonus = 0 }
+        if fractionRemaining > 0.70 {
+            bonus = 2
+        } else if fractionRemaining > 0.40 {
+            bonus = 1
+        } else {
+            bonus = 0
+        }
 
         let earned = currentWordPoints + bonus
         settings.teams[currentTeamIndex].totalScore += earned
@@ -393,16 +416,22 @@ final class GameViewModel {
         let nextTeam = currentTeamIndex + 1
         if nextTeam >= settings.teams.count {
             if currentRound >= settings.rounds {
-                phase = .gameOver; navPath = [.gameOver]
+                phase = .gameOver
+                navPath = [.gameOver]
             } else {
-                currentRound += 1; currentTeamIndex = 0
-                phase = .teamReady; navPath = [.teamReady]
+                currentRound += 1
+                currentTeamIndex = 0
+                phase = .teamReady
+                navPath = [.teamReady]
             }
         } else {
             currentTeamIndex = nextTeam
-            phase = .teamReady; navPath = [.teamReady]
+            phase = .teamReady
+            navPath = [.teamReady]
         }
-        currentWord = nil; selectedPoints = 5; customWordInput = ""
+        currentWord = nil
+        selectedPoints = 5
+        customWordInput = ""
     }
 
     // MARK: - Timer
@@ -415,21 +444,27 @@ final class GameViewModel {
                 guard let self, !Task.isCancelled else { return }
                 if self.isPaused { continue }
                 if self.timeRemaining > 0 {
-                    if self.timeRemaining == 10 { appSettings.playCountdownBeep() }
+                    if self.timeRemaining <= 10 {
+                        appSettings.playCountdownBeep()
+                    }
                     self.timeRemaining -= 1
                 } else {
                     appSettings.stopPartyMusic()
                     appSettings.hapticNotification(.warning)
                     self.stopTimer()
                     self.recordTurn(guessed: false)
-                    self.phase = .turnResult; self.navPath = [.turnResult]
+                    self.phase = .turnResult
+                    self.navPath = [.turnResult]
                     return
                 }
             }
         }
     }
 
-    func stopTimer() { timerTask?.cancel(); timerTask = nil }
+    func stopTimer() {
+        timerTask?.cancel()
+        timerTask = nil
+    }
 
     // MARK: - Category/Difficulty restrictions
 
@@ -439,7 +474,9 @@ final class GameViewModel {
         let played = playedCombos[teamID, default: []]
         var used = Set<Int>()
         for pts in [3, 5, 7] {
-            if played.contains("\(category.rawValue)_\(pts)") { used.insert(pts) }
+            if played.contains("\(category.rawValue)_\(pts)") {
+                used.insert(pts)
+            }
         }
         return used
     }
@@ -454,8 +491,12 @@ final class GameViewModel {
     func exitGame() {
         stopTimer()
         for i in settings.teams.indices { settings.teams[i].totalScore = 0 }
-        turnRecords = []; phase = .setup; navPath = []
+        turnRecords = []
+        phase = .setup
+        navPath = []
     }
 
-    var sortedTeams: [Team] { settings.teams.sorted { $0.totalScore > $1.totalScore } }
+    var sortedTeams: [Team] {
+        settings.teams.sorted { $0.totalScore > $1.totalScore }
+    }
 }
