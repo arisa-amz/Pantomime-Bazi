@@ -177,6 +177,7 @@ final class GameViewModel {
     var currentWordPoints: Int = 5
     var faultCount: Int = 0
     var wordChangedPenalty: Int = 0  // 1 if word was swapped before timer
+    var wordChangedCount: Int = 0    // how many times word was swapped (max 2)
 
     // Timer
     var timeRemaining: Int = 60
@@ -254,6 +255,7 @@ final class GameViewModel {
         turnCategories = []      // none selected by default; user picks fresh each turn
         faultCount = 0
         wordChangedPenalty = 0
+        wordChangedCount = 0
         wordRevealed = false
         timerStarted = false
         phase = .wordPick
@@ -287,6 +289,7 @@ final class GameViewModel {
         wordRevealed = false
         faultCount = 0
         wordChangedPenalty = 0
+        wordChangedCount = 0
         timerStarted = false
         isPaused = false
         timeRemaining = settings.timePerTurn
@@ -308,8 +311,11 @@ final class GameViewModel {
     /// Actor can swap the word before starting the timer — costs 1 point
     func changeWordBeforeStart() {
         guard !timerStarted else { return }
+        guard wordChangedCount < 2 else { return }  // max 2 swaps allowed
+        wordChangedCount += 1
         currentWordPoints = max(1, currentWordPoints - 1)
-        wordChangedPenalty = 1  // record that word was swapped
+        // penalty = total swaps done so far (1 after first swap, 2 after second)
+        wordChangedPenalty = wordChangedCount
         if let w = wordPool.draw(points: selectedPoints, categories: turnCategories, language: language) {
             currentWord = w
         }

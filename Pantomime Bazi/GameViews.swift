@@ -7,7 +7,6 @@
 
 
 
-
 import SwiftUI
 
 // MARK: - Team Ready (actor spotlight + scoreboard only)
@@ -23,6 +22,7 @@ struct TeamReadyView: View {
     var opponentTeam: Team { vm.opponentTeam }
 
     @State private var appeared = false
+    @State private var showExitConfirm = false
 
     var body: some View {
         ZStack {
@@ -72,6 +72,33 @@ struct TeamReadyView: View {
             }
         }
         .navigationBarBackButtonHidden()
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button { showExitConfirm = true; appSettings.haptic(.light) } label: {
+                    ZStack {
+                        Circle().fill(Color.black.opacity(0.25)).frame(width: 34, height: 34)
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .black))
+                            .foregroundStyle(Color.white)
+                    }
+                }
+            }
+        }
+        .alert(
+            t("Cancel the game?", "بازی رو لغو کنی؟"),
+            isPresented: $showExitConfirm
+        ) {
+            Button(t("Yes, Exit", "آره، خروج"), role: .destructive) {
+                appSettings.haptic(.medium)
+                vm.exitGame()
+            }
+            Button(t("No, Continue", "نه، ادامه بده"), role: .cancel) {}
+        } message: {
+            Text(t(
+                "All rounds and scores will be lost. You'll need to set up a new game.",
+                "همه راندها و امتیازها از دست می‌روند. باید یه بازی جدید راه‌اندازی کنی."
+            ))
+        }
         .onAppear {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) { appeared = true }
         }
@@ -822,19 +849,27 @@ struct PlayingView: View {
             }
             .padding(.horizontal, 20)
 
-            // CHANGE WORD — disabled for custom words (opponent chose it, can't swap)
+            // CHANGE WORD — disabled for custom words or after 2 swaps
             let isCustomWord = vm.currentWord?.isCustom == true
-            let canChange = !isCustomWord && vm.currentWordPoints > 1
+            let swapsLeft = 2 - vm.wordChangedCount
+            let canChange = !isCustomWord && vm.currentWordPoints > 1 && swapsLeft > 0
             Button {
                 appSettings.haptic(.medium)
                 vm.changeWordBeforeStart()
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 14, weight: .bold))
-                    Text(isCustomWord
-                         ? t("Custom word — can't change","کلمه سفارشی — قابل تغییر نیست")
-                         : t("Change Word (−1 pt)","عوض کردن کلمه (−۱ امتیاز)"))
-                        .font(AppFonts.rounded(14, weight: .bold))
+                    if isCustomWord {
+                        Text(t("Custom word — can't change","کلمه سفارشی — قابل تغییر نیست"))
+                            .font(AppFonts.rounded(14, weight: .bold))
+                    } else if swapsLeft <= 0 {
+                        Text(t("No more swaps (used 2/2)","عوض کردن ممکن نیست (۲/۲ استفاده شد)"))
+                            .font(AppFonts.rounded(14, weight: .bold))
+                    } else {
+                        Text(t("Change Word (−1 pt) — \(swapsLeft) left",
+                               "عوض کردن کلمه (−۱ امتیاز) — \(swapsLeft) بار مانده"))
+                            .font(AppFonts.rounded(14, weight: .bold))
+                    }
                 }
                 .foregroundStyle(canChange ? AppColors.orange : AppColors.textSecondary.opacity(0.35))
                 .frame(maxWidth: .infinity).padding(.vertical, 13)
@@ -937,9 +972,13 @@ struct TurnResultView: View {
                             resultRow(label: t("Faults","خطاها"), value: lang == .persian ? "−\(rec.faultCount) امتیاز" : "−\(rec.faultCount) pts", color: AppColors.orange)
                         }
                         if rec.wordChangePenalty > 0 {
-                            resultRow(label: t("Word swap (−1 pt)","عوض کردن کلمه (−۱ امتیاز)"),
-                                      value: lang == .persian ? "−1 امتیاز" : "−1 pt",
-                                      color: AppColors.orange)
+                            let swapLabel = rec.wordChangePenalty == 1
+                                ? t("Word swap ×1","عوض کردن کلمه ×۱")
+                                : t("Word swap ×2","عوض کردن کلمه ×۲")
+                            let swapValue = lang == .persian
+                                ? "−\(rec.wordChangePenalty) امتیاز"
+                                : "−\(rec.wordChangePenalty) pts"
+                            resultRow(label: swapLabel, value: swapValue, color: AppColors.orange)
                         }
                         if rec.bonusPoints > 0 {
                             resultRow(

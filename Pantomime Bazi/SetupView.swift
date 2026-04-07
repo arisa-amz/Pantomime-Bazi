@@ -34,6 +34,7 @@ struct SetupView: View {
                         gameSettingsSection
                         startButton.padding(.bottom, 52)
                     }
+                    .layoutDir(lang)
                 }
             }
             .navigationDestination(for: AppRoute.self) { route in
@@ -56,7 +57,6 @@ struct SetupView: View {
                 OnboardingView(onDone: { showGuide = false })
             }
         }
-        .layoutDir(lang)
     }
 
     // MARK: Header
@@ -70,6 +70,7 @@ struct SetupView: View {
                 AppColors.yellow.frame(height: 5)
             }
             VStack(spacing: 0) {
+                // Language toggle and gear always stay LTR regardless of app language
                 HStack {
                     LanguageToggle(
                         language: Binding(
@@ -91,6 +92,7 @@ struct SetupView: View {
                     }
                 }
                 .padding(.horizontal, 20).padding(.top, 14)
+                .environment(\.layoutDirection, .leftToRight)
 
                 VStack(spacing: 4) {
                     Text(t("PANTOMIME", "پانتومیم"))
