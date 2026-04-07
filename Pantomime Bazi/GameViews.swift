@@ -418,25 +418,25 @@ struct WordPickView: View {
                         Text(
                             {
                                 if canStart {
-                                    return t("START TIMER →", "شروع تایمر →")
+                                    return t("START TIMER", "شروع تایمر")
                                 }
                                 let noCat = vm.turnCategories.isEmpty
                                 let noPts = selectedPoints == 0
                                 if noCat && noPts {
                                     return t(
-                                        "↑ Pick categories & difficulty",
-                                        "↑ دسته‌بندی و سختی انتخاب کن"
+                                        "Pick categories & difficulty",
+                                        "دسته‌بندی و سختی انتخاب کن"
                                     )
                                 }
                                 if noCat {
                                     return t(
-                                        "↑ Pick at least one category",
-                                        "↑ حداقل یه دسته انتخاب کن"
+                                        "Pick at least one category",
+                                        "حداقل یه دسته انتخاب کن"
                                     )
                                 }
                                 return t(
-                                    "↑ Pick a difficulty above",
-                                    "↑ یه سختی انتخاب کن"
+                                    "Pick a difficulty above",
+                                    "یه سختی انتخاب کن"
                                 )
                             }()
                         )
