@@ -987,14 +987,14 @@ struct OnboardingView: View {
         )] = [
             (
                 "🎭", "Welcome to Pantomime!", "به پانتومیم خوش آمدید!",
-                "A party game where you act out words — no talking, only moving!",
-                "یه بازی پارتی که باید کلمات رو با حرکت بدن نشون بدی — بدون حرف زدن!",
+                "A party game where you act out words، no talking, only moving!",
+                "یه بازی پارتی که باید کلمات رو با حرکت بدن نشون بدی، بدون حرف زدن!",
                 AppColors.blue
             ),
             (
                 "⚔️", "How it works", "چطور بازی می‌کنی",
-                "Two or more teams take turns. The OPPONENT team picks a word for your team's actor. The actor must make their team guess it without speaking.",
-                "دو تیم یا بیشتر به نوبت بازی می‌کنن. تیم حریف یه کلمه برای تیم شما انتخاب می‌کنه. بازیکن باید بدون حرف زدن کلمه رو نشون بده.",
+                "Two or more teams take turns. The actor must make their team guess it without speaking.",
+                "دو تیم یا بیشتر به نوبت بازی می‌کنن. بازیکن باید بدون حرف زدن کلمه رو نشون بده.",
                 AppColors.purple
             ),
             (
@@ -1142,8 +1142,8 @@ struct AboutView: View {
                         ) {
                             Text(
                                 t(
-                                    "Pantomime is a free Persian & English party game built for friends and families. No accounts, no ads, no paywalls — just fun.",
-                                    "پانتومیم یه بازی پارتی رایگان به فارسی و انگلیسی برای دوستان و خانواده‌هاست. بدون اکانت، بدون تبلیغ، بدون پرداخت — فقط سرگرمی."
+                                    "Pantomime is a free Persian & English party game built for friends and families. No accounts, no ads, no paywalls, just fun.",
+                                    "پانتومیم یه بازی پارتی رایگان به فارسی و انگلیسی برای دوستان و خانواده‌هاست. بدون اکانت، بدون تبلیغ، بدون پرداخت, فقط سرگرمی."
                                 )
                             )
                             .font(AppFonts.rounded(14))
@@ -1215,7 +1215,7 @@ struct AboutView: View {
                         ) {
                             Text(
                                 t(
-                                    "A love letter to Persian party culture. Dedicated to all Farsi-speaking people around the world. Special thanks to everyone who playtested and gave feedback.",
+                                    "A love letter to Persian party culture. Dedicated to all Farsi speaking people around the world. Special thanks to everyone who playtested and gave feedback.",
                                     "یه هدیه عاشقانه به فرهنگ پارتی ایرانی. تقدیم به تمام فارسی‌زبانان دنیا. تشکر ویژه از همه کسانی که بازی رو تست کردند و بازخورد دادند."
                                 )
                             )
