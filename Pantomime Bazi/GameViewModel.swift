@@ -4,6 +4,8 @@
 //
 //  Created by Erfan Yarahmadi on 01/04/2026.
 //
+//
+
 
 import Foundation
 import Observation
@@ -27,12 +29,21 @@ struct Team: Identifiable {
     var totalScore: Int = 0
 
     static let defaultColors: [Color] = [
-        Color(hex: "#FF3B5C"), Color(hex: "#3B82F6"), Color(hex: "#10B981"),
-        Color(hex: "#F59E0B"), Color(hex: "#8B5CF6"), Color(hex: "#EC4899"),
+        Color(hex: "#3B82F6"),  // Team 1 — electric blue
+        Color(hex: "#FF6B35"),  // Team 2 — orange
+        Color(hex: "#10B981"),  // Team 3 — emerald green
+        Color(hex: "#F59E0B"),  // Team 4 — amber
+        Color(hex: "#8B5CF6"),  // Team 5 — vivid purple
+        Color(hex: "#EC4899"),  // Team 6 — hot pink
     ]
     static let defaultIcons = [
-        "🎭", "🦁", "🐯", "🐻", "🦊", "🐺", "🦄", "🐸", "🐧", "🦋",
-        "🌟", "⚡", "🔥", "💎", "🚀", "🎸", "🏆", "👑", "🎯", "🎪",
+        "🎭", "🦁", "🐯", "🐻", "🦊", "🐺",
+        "🦄", "🐸", "🐧", "🦋", "🐲", "🦅",
+        "🌟", "🔥", "💎", "🚀", "🎸", "🏆",
+        "👑", "🎪", "🌈", "💥", "🎵", "🎮",
+        "⚽", "🏀", "🎳", "🏄", "🤿", "🥊",
+        "🍕", "🍦", "🎂", "🍩", "🧁", "🍭",
+        "🌺", "🌴", "🍀", "🦜", "🐬", "🦩",
     ]
 
     static func defaultName(index: Int, language: AppLanguage) -> String {

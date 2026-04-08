@@ -6,6 +6,7 @@
 //
 //
 
+
 import SwiftUI
 
 // MARK: - Setup View
@@ -103,7 +104,7 @@ struct SetupView: View {
                         Capsule().fill(AppColors.red).frame(height: 5)
                         Capsule().fill(AppColors.blue).frame(height: 5)
                     }.frame(width: 160)
-                    Text(t("the CHALLENGE", "چالش بزرگ"))
+                    Text(t("Great Challenge", "چالش بزرگ"))
                         .font(AppFonts.rounded(15, weight: .heavy))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 16).padding(.vertical, 6)
@@ -502,43 +503,112 @@ struct IconPickerSheet: View {
     @Binding var team: Team
     @Environment(\.dismiss) var dismiss
 
-    let icons =
-        Team.defaultIcons + [
-            "😀", "😎", "🤩", "🥳", "🤖", "👻", "🐲", "🦅", "🌈", "💥",
-            "🎵", "🎮", "⚽", "🏀", "🎯", "🚗", "✈️", "🏖", "🌙", "❤️",
-        ]
+    // All 42 icons live in Team.defaultIcons — no duplicates, all picture-style emoji
+    let icons = Team.defaultIcons
+
+    // 18 vibrant swatches — full playful palette, hues spread across the wheel
+    let colorSwatches: [Color] = [
+        Color(hex: "#8B5CF6"),  // vivid purple
+        Color(hex: "#3B82F6"),  // electric blue
+        Color(hex: "#10B981"),  // emerald green
+        Color(hex: "#F59E0B"),  // amber
+        Color(hex: "#EC4899"),  // hot pink
+        Color(hex: "#FF6B35"),  // orange
+        Color(hex: "#FF3B5C"),  // vivid red
+        Color(hex: "#06B6D4"),  // cyan
+        Color(hex: "#14B8A6"),  // teal
+        Color(hex: "#EAB308"),  // golden yellow
+        Color(hex: "#F97316"),  // deep orange
+        Color(hex: "#6366F1"),  // indigo
+        Color(hex: "#84CC16"),  // lime green
+        Color(hex: "#0EA5E9"),  // sky blue
+        Color(hex: "#A855F7"),  // violet
+        Color(hex: "#22C55E"),  // bright green
+        Color(hex: "#F43F5E"),  // rose red
+        Color(hex: "#FB923C"),  // light orange
+    ]
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                LazyVGrid(
-                    columns: Array(repeating: GridItem(.flexible()), count: 6),
-                    spacing: 14
-                ) {
-                    ForEach(icons, id: \.self) { icon in
-                        Button {
-                            team.icon = icon
-                            Haptics.impact(.light)
-                            dismiss()
-                        } label: {
-                            Text(icon).font(.system(size: 34))
-                                .frame(width: 54, height: 54)
-                                .background(
-                                    team.icon == icon
-                                        ? team.color.opacity(0.2) : Color.clear
-                                )
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 24) {
+
+                    // ── Color picker ──────────────────────────────
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Team Color")
+                            .font(AppFonts.rounded(13, weight: .heavy))
+                            .foregroundStyle(AppColors.textSecondary)
+                            .padding(.horizontal, 20)
+
+                        LazyVGrid(
+                            columns: Array(repeating: GridItem(.flexible()), count: 6),
+                            spacing: 12
+                        ) {
+                            ForEach(colorSwatches, id: \.self) { swatch in
+                                Button {
+                                    team.color = swatch
+                                    Haptics.impact(.light)
+                                } label: {
+                                    ZStack {
+                                        Circle()
+                                            .fill(swatch)
+                                            .frame(width: 44, height: 44)
+                                            .shadow(color: swatch.opacity(0.5), radius: 4, y: 2)
+                                        if team.color == swatch {
+                                            Circle()
+                                                .strokeBorder(Color.white, lineWidth: 3)
+                                                .frame(width: 44, height: 44)
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 13, weight: .black))
+                                                .foregroundStyle(.white)
+                                        }
+                                    }
+                                }
+                            }
                         }
+                        .padding(.horizontal, 20)
+                    }
+
+                    Divider().padding(.horizontal, 20)
+
+                    // ── Icon picker ───────────────────────────────
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Team Icon")
+                            .font(AppFonts.rounded(13, weight: .heavy))
+                            .foregroundStyle(AppColors.textSecondary)
+                            .padding(.horizontal, 20)
+
+                        LazyVGrid(
+                            columns: Array(repeating: GridItem(.flexible()), count: 6),
+                            spacing: 14
+                        ) {
+                            ForEach(icons, id: \.self) { icon in
+                                Button {
+                                    team.icon = icon
+                                    Haptics.impact(.light)
+                                } label: {
+                                    Text(icon).font(.system(size: 34))
+                                        .frame(width: 54, height: 54)
+                                        .background(
+                                            team.icon == icon
+                                                ? team.color.opacity(0.2) : Color.clear
+                                        )
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 20)
                     }
                 }
-                .padding(20)
+                .padding(.vertical, 20)
             }
-            .navigationTitle("Team Icon")
+            .navigationTitle("Customise Team")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") { dismiss() }.font(
-                        AppFonts.rounded(16, weight: .bold)
-                    ).foregroundStyle(AppColors.blue)
+                    Button("Done") { dismiss() }
+                        .font(AppFonts.rounded(16, weight: .bold))
+                        .foregroundStyle(team.color)
                 }
             }
         }
@@ -1104,7 +1174,7 @@ struct AboutView: View {
                         // App identity
                         VStack(spacing: 10) {
                             Text("🎭").font(.system(size: 64))
-                            Text("پانتومیم")
+                            Text(t("Pantomime", "پانتومیم"))
                                 .font(
                                     .system(
                                         size: 32,
@@ -1113,7 +1183,7 @@ struct AboutView: View {
                                     )
                                 )
                                 .foregroundStyle(AppColors.text)
-                            Text(t("the CHALLENGE", "چالش بزرگ"))
+                            Text(t("Great Callenge", "چالش بزرگ"))
                                 .font(AppFonts.rounded(15, weight: .heavy))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 14).padding(.vertical, 5)
@@ -1157,49 +1227,32 @@ struct AboutView: View {
                             color: AppColors.purple,
                             title: t("Our Team", "تیم ما")
                         ) {
-                            VStack(spacing: 14) {
-                                teamMember(
-                                    name: t(
-                                        "Erfan Yarahmadi",
-                                        "عرفان یاراحمدی"
-                                    ),
-                                    role: t(
-                                        "Design & Development",
-                                        "طراحی و توسعه"
-                                    ),
-                                    emoji: "👨‍💻"
-                                )
+                            VStack(spacing: 16) {
+                                // Shared role — all three contributed equally
+                                Text(t(
+                                    "Ideation  ·  Design  ·  Development",
+                                    "ایده‌پردازی  ·  طراحی  ·  توسعه"
+                                ))
+                                .font(AppFonts.rounded(12, weight: .heavy))
+                                .foregroundStyle(AppColors.purple)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity)
+
                                 Divider()
-                                teamMember(
-                                    name: t(
-                                        "Alireza Aminzadeh",
-                                        "علیرضا امین‌زاده"
-                                    ),
-                                    role: t(
-                                        "Ideation & Design",
-                                        "ایده‌پردازی و طراحی"
-                                    ),
-                                    emoji: "🎨"
-                                )
+
+                                // Names — equal weight, no individual sub-roles
+                                VStack(spacing: 12) {
+                                    teamMemberName("Erfan Yarahmadi", "عرفان یاراحمدی", "👨‍💻")
+                                    teamMemberName("Alireza Aminzadeh", "علیرضا امین‌زاده", "🎨")
+                                    teamMemberName("Reza AghayariKordkandi", "رضا آقایاری کردکندی", "✏️")
+                                }
+
                                 Divider()
-                                teamMember(
-                                    name: t(
-                                        "Reza AghayariKordkandi",
-                                        "رضا آقایاری کردکندی"
-                                    ),
-                                    role: t(
-                                        "Ideation & Design",
-                                        "ایده‌پردازی و طراحی"
-                                    ),
-                                    emoji: "✏️"
-                                )
-                                Divider()
-                                Text(
-                                    t(
-                                        "Built with ❤️ at Apple Developer Academy, Naples",
-                                        "ساخته شده با ❤️ در Apple Developer Academy، ناپل"
-                                    )
-                                )
+
+                                Text(t(
+                                    "Built with ❤️ at Apple Developer Academy, Naples",
+                                    "ساخته شده با ❤️ در Apple Developer Academy، ناپل"
+                                ))
                                 .font(AppFonts.rounded(12))
                                 .foregroundStyle(AppColors.textSecondary)
                                 .multilineTextAlignment(.center)
@@ -1277,6 +1330,17 @@ struct AboutView: View {
                     .font(AppFonts.rounded(12))
                     .foregroundStyle(AppColors.textSecondary)
             }
+            Spacer()
+        }
+    }
+
+    // Name-only row — no individual role label
+    func teamMemberName(_ en: String, _ fa: String, _ emoji: String) -> some View {
+        HStack(spacing: 12) {
+            Text(emoji).font(.system(size: 26))
+            Text(t(en, fa))
+                .font(AppFonts.rounded(15, weight: .bold))
+                .foregroundStyle(AppColors.text)
             Spacer()
         }
     }
