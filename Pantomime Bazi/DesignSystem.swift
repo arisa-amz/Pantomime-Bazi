@@ -42,6 +42,8 @@ struct AppColors {
     static let purple         = Color(hex: "#8B5CF6")
     static let pink           = Color(hex: "#EC4899")
     static let orange         = Color(hex: "#FF6B35")
+    
+    
 
     static func forCategory(_ cat: WordCategory) -> Color {
         switch cat {
